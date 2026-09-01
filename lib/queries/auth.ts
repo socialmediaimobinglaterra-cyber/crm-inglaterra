@@ -45,23 +45,41 @@ export async function createLoginCode(email: string, codeHash: string) {
   });
 }
 
-export async function getLatestUsableLoginCode(email: string) {
-  const codes = await sql<LoginCode[]>`
-    select id, email, code_hash, expires_at, used_at, created_at
-    from codigos_login
-    where email = ${email}
-      and used_at is null
-    order by created_at desc
-    limit 1
-  `;
+type VerifyLoginCodeHash = (email: string, codeHash: string) => boolean;
 
-  return codes[0] ?? null;
-}
+export async function consumeLoginCode(
+  email: string,
+  verifyLoginCodeHash: VerifyLoginCodeHash,
+) {
+  return sql.begin(async (tx) => {
+    const codes = await tx<LoginCode[]>`
+      select id, email, code_hash, expires_at, used_at, created_at
+      from codigos_login
+      where email = ${email}
+        and used_at is null
+      order by created_at desc
+      limit 1
+      for update
+    `;
+    const loginCode = codes[0];
 
-export async function markLoginCodeUsed(id: string) {
-  await sql`
-    update codigos_login
-    set used_at = now()
-    where id = ${id}
-  `;
+    if (!loginCode || loginCode.used_at || loginCode.expires_at.getTime() <= Date.now()) {
+      return false;
+    }
+
+    if (!verifyLoginCodeHash(loginCode.email, loginCode.code_hash)) {
+      return false;
+    }
+
+    const consumed = await tx<{ id: string }[]>`
+      update codigos_login
+      set used_at = now()
+      where id = ${loginCode.id}
+        and used_at is null
+        and expires_at > now()
+      returning id
+    `;
+
+    return consumed.length === 1;
+  });
 }

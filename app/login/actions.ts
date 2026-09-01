@@ -4,10 +4,9 @@ import { redirect } from "next/navigation";
 import { generateLoginCode, hashLoginCode, verifyLoginCodeHash } from "@/lib/auth/codes";
 import { setSessionCookie } from "@/lib/auth/session";
 import {
+  consumeLoginCode,
   createLoginCode,
   getActiveUserByEmail,
-  getLatestUsableLoginCode,
-  markLoginCodeUsed,
 } from "@/lib/queries/auth";
 import { sendLoginCodeEmail } from "@/lib/email/resend";
 
@@ -91,14 +90,11 @@ export async function verifyLoginCode(
   }
 
   const user = isAllowedDomain(email) ? await getActiveUserByEmail(email) : null;
-  const loginCode = user ? await getLatestUsableLoginCode(email) : null;
+  const codeConsumed = user
+    ? await consumeLoginCode(email, (lockedEmail, codeHash) => verifyLoginCodeHash(lockedEmail, code, codeHash))
+    : false;
 
-  if (
-    !user ||
-    !loginCode ||
-    loginCode.expires_at.getTime() <= Date.now() ||
-    !verifyLoginCodeHash(email, code, loginCode.code_hash)
-  ) {
+  if (!user || !codeConsumed) {
     return {
       step: "code",
       email,
@@ -107,7 +103,6 @@ export async function verifyLoginCode(
     };
   }
 
-  await markLoginCodeUsed(loginCode.id);
   await setSessionCookie({ email: user.email, role: user.role });
 
   redirect("/dashboard");
