@@ -15,6 +15,8 @@ export type LoginCode = {
   expires_at: Date;
   used_at: Date | null;
   created_at: Date;
+  failed_attempts: number;
+  invalidated_at: Date | null;
 };
 
 export async function getActiveUserByEmail(email: string) {
@@ -53,21 +55,40 @@ export async function consumeLoginCode(
 ) {
   return sql.begin(async (tx) => {
     const codes = await tx<LoginCode[]>`
-      select id, email, code_hash, expires_at, used_at, created_at
+      select id, email, code_hash, expires_at, used_at, created_at, failed_attempts, invalidated_at
       from codigos_login
       where email = ${email}
         and used_at is null
+        and invalidated_at is null
       order by created_at desc
       limit 1
       for update
     `;
     const loginCode = codes[0];
 
-    if (!loginCode || loginCode.used_at || loginCode.expires_at.getTime() <= Date.now()) {
+    if (
+      !loginCode ||
+      loginCode.used_at ||
+      loginCode.invalidated_at ||
+      loginCode.expires_at.getTime() <= Date.now()
+    ) {
       return false;
     }
 
     if (!verifyLoginCodeHash(loginCode.email, loginCode.code_hash)) {
+      await tx`
+        update codigos_login
+        set
+          failed_attempts = failed_attempts + 1,
+          invalidated_at = case
+            when failed_attempts + 1 >= 5 then now()
+            else invalidated_at
+          end
+        where id = ${loginCode.id}
+          and used_at is null
+          and invalidated_at is null
+      `;
+
       return false;
     }
 

@@ -2,6 +2,7 @@ import { hashRateLimitIdentifier } from "@/lib/auth/identifiers";
 import { sql } from "@/lib/db";
 
 const maxRequests = 5;
+const maxValidationAttemptsByIp = 20;
 const rateLimitWindow = "15 minutes";
 const expiredCleanupBatchSize = 100;
 
@@ -13,6 +14,10 @@ type LoginCodeRateLimitInput = {
 
 type RateLimitCount = {
   scope: "email" | "ip";
+  attempts: number;
+};
+
+type ValidationRateLimitCount = {
   attempts: number;
 };
 
@@ -93,6 +98,69 @@ export async function recordLoginCodeRequestAttempt({
       await tx`
         delete from login_rate_limit_attempts
         where id in ${tx(inserted.map((attempt) => attempt.id))}
+      `;
+    }
+
+    return { allowed };
+  });
+}
+
+export async function recordLoginCodeValidationAttempt({
+  ip,
+  testRunId,
+}: {
+  ip: string;
+  testRunId?: string;
+}) {
+  const ipHash = hashRateLimitIdentifier("ip", ip);
+
+  return sql.begin(async (tx) => {
+    await tx`select pg_advisory_xact_lock(hashtextextended(${ipHash}, 0))`;
+
+    await tx`
+      delete from login_validation_rate_limit_attempts
+      where ip_hash = ${ipHash}
+        and created_at <= now() - ${rateLimitWindow}::interval
+    `;
+
+    await tx`
+      with expired_attempts as (
+        select ctid
+        from login_validation_rate_limit_attempts
+        where created_at <= now() - ${rateLimitWindow}::interval
+        order by created_at
+        limit ${expiredCleanupBatchSize}
+        for update skip locked
+      )
+      delete from login_validation_rate_limit_attempts
+      using expired_attempts
+      where login_validation_rate_limit_attempts.ctid = expired_attempts.ctid
+    `;
+
+    const inserted = await tx<{ id: string }[]>`
+      insert into login_validation_rate_limit_attempts (ip_hash, test_run_id)
+      values (${ipHash}, ${testRunId ?? null})
+      returning id
+    `;
+
+    const counts = await tx<ValidationRateLimitCount[]>`
+      select count(*)::int as attempts
+      from login_validation_rate_limit_attempts
+      where ip_hash = ${ipHash}
+        and created_at > now() - ${rateLimitWindow}::interval
+    `;
+    const allowed = (counts[0]?.attempts ?? 0) <= maxValidationAttemptsByIp;
+
+    if (allowed) {
+      await tx`
+        update login_validation_rate_limit_attempts
+        set allowed = true
+        where id = ${inserted[0].id}
+      `;
+    } else {
+      await tx`
+        delete from login_validation_rate_limit_attempts
+        where id = ${inserted[0].id}
       `;
     }
 

@@ -9,7 +9,10 @@ import {
   createLoginCode,
   getActiveUserByEmail,
 } from "@/lib/queries/auth";
-import { recordLoginCodeRequestAttempt } from "@/lib/queries/rate-limit";
+import {
+  recordLoginCodeRequestAttempt,
+  recordLoginCodeValidationAttempt,
+} from "@/lib/queries/rate-limit";
 import { sendLoginCodeEmail } from "@/lib/email/resend";
 
 export type LoginActionState = {
@@ -20,6 +23,7 @@ export type LoginActionState = {
 };
 
 const genericEmailMessage = "Se o e-mail existir, voce recebera um codigo em alguns instantes.";
+const genericCodeError = "Código inválido ou expirado.";
 
 function normalizeEmail(value: FormDataEntryValue | null) {
   return String(value ?? "").trim().toLowerCase();
@@ -91,7 +95,20 @@ export async function verifyLoginCode(
       step: "code",
       email,
       message: "",
-      error: "Informe o e-mail e o codigo recebido.",
+      error: "Informe o e-mail e o código recebido.",
+    };
+  }
+
+  const { allowed } = await recordLoginCodeValidationAttempt({
+    ip: await getRequestIp(),
+  });
+
+  if (!allowed) {
+    return {
+      step: "code",
+      email,
+      message: "",
+      error: genericCodeError,
     };
   }
 
@@ -100,7 +117,7 @@ export async function verifyLoginCode(
       step: "code",
       email,
       message: "",
-      error: "Codigo invalido ou expirado.",
+      error: genericCodeError,
     };
   }
 
@@ -114,7 +131,7 @@ export async function verifyLoginCode(
       step: "code",
       email,
       message: "",
-      error: "Codigo invalido ou expirado.",
+      error: genericCodeError,
     };
   }
 

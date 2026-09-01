@@ -9,7 +9,8 @@
     "db:migrate": "tsx scripts/migrate.ts",
     "db:seed": "tsx scripts/seed.ts",
     "test:auth-concurrency": "tsx scripts/test-auth-concurrency.ts",
-    "test:login-rate-limit": "tsx scripts/test-login-rate-limit.ts"
+    "test:login-rate-limit": "tsx scripts/test-login-rate-limit.ts",
+    "test:login-validation-rate-limit": "tsx scripts/test-login-validation-rate-limit.ts"
   },
   "dependencies": {
     "next": "^15.5.0",
