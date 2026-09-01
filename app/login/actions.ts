@@ -2,12 +2,14 @@
 
 import { redirect } from "next/navigation";
 import { generateLoginCode, hashLoginCode, verifyLoginCodeHash } from "@/lib/auth/codes";
+import { getRequestIp } from "@/lib/auth/request-ip";
 import { setSessionCookie } from "@/lib/auth/session";
 import {
   consumeLoginCode,
   createLoginCode,
   getActiveUserByEmail,
 } from "@/lib/queries/auth";
+import { recordLoginCodeRequestAttempt } from "@/lib/queries/rate-limit";
 import { sendLoginCodeEmail } from "@/lib/email/resend";
 
 export type LoginActionState = {
@@ -39,6 +41,19 @@ export async function requestLoginCode(
       email: "",
       message: "",
       error: "Informe seu e-mail.",
+    };
+  }
+
+  const { allowed } = await recordLoginCodeRequestAttempt({
+    email,
+    ip: await getRequestIp(),
+  });
+
+  if (!allowed) {
+    return {
+      step: "code",
+      email,
+      message: genericEmailMessage,
     };
   }
 
