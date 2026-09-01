@@ -52,8 +52,6 @@ export function LoginForm() {
         <button
           formAction={requestCodeAction}
           formNoValidate
-          name="email"
-          value={email}
           disabled={requestingCode}
           className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
         >
