@@ -12,7 +12,8 @@
     "test:login-rate-limit": "tsx scripts/test-login-rate-limit.ts",
     "test:login-validation-rate-limit": "tsx scripts/test-login-validation-rate-limit.ts",
     "test:auth-audit": "tsx scripts/test-auth-audit.ts",
-    "test:user-invites": "tsx scripts/test-user-invites.ts"
+    "test:user-invites": "tsx scripts/test-user-invites.ts",
+    "test:accept-invite-page": "tsx scripts/test-accept-invite-page.tsx"
   },
   "dependencies": {
     "next": "^15.5.0",
