@@ -4,13 +4,25 @@ import { hashRateLimitIdentifier } from "@/lib/auth/identifiers";
 import { sql } from "@/lib/db";
 import { requireEnv } from "@/lib/env";
 
-export type AuthAuditEventType = "login_success" | "login_rejected" | "rate_limit_blocked" | "logout";
+export type AuthAuditEventType =
+  | "login_success"
+  | "login_rejected"
+  | "rate_limit_blocked"
+  | "logout"
+  | "invite_created"
+  | "invite_resent"
+  | "invite_revoked"
+  | "invite_accepted";
 export type AuthAuditReason =
   | "code_consumed"
   | "invalid_credentials"
   | "request_rate_limited"
   | "validation_rate_limited"
-  | "user_logout";
+  | "user_logout"
+  | "invite_created_by_admin"
+  | "invite_resent_by_admin"
+  | "invite_revoked_by_admin"
+  | "invite_accepted_by_user";
 
 const auditRetentionWindow = "24 months";
 const auditCleanupBatchSize = 100;
