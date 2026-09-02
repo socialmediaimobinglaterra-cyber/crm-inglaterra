@@ -30,3 +30,16 @@ export async function getRequestIp() {
   // is absent, every unknown client shares one conservative bucket.
   return getRequestIpFromHeaders(headerStore);
 }
+
+export function getRequestUserAgentFromHeaders(headerStore: Pick<Headers, "get">) {
+  return (headerStore.get("user-agent") ?? "").slice(0, 512);
+}
+
+export async function getRequestContext() {
+  const headerStore = await headers();
+
+  return {
+    ip: getRequestIpFromHeaders(headerStore),
+    userAgent: getRequestUserAgentFromHeaders(headerStore),
+  };
+}

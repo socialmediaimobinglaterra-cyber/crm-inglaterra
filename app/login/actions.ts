@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { generateLoginCode, hashLoginCode, verifyLoginCodeHash } from "@/lib/auth/codes";
-import { getRequestIp } from "@/lib/auth/request-ip";
+import { getRequestContext } from "@/lib/auth/request-ip";
 import { setSessionCookie } from "@/lib/auth/session";
 import {
   consumeLoginCode,
@@ -13,6 +13,7 @@ import {
   recordLoginCodeRequestAttempt,
   recordLoginCodeValidationAttempt,
 } from "@/lib/queries/rate-limit";
+import { recordAuthAuditEventBestEffort } from "@/lib/queries/audit";
 import { sendLoginCodeEmail } from "@/lib/email/resend";
 
 export type LoginActionState = {
@@ -48,12 +49,22 @@ export async function requestLoginCode(
     };
   }
 
+  const requestContext = await getRequestContext();
   const { allowed } = await recordLoginCodeRequestAttempt({
     email,
-    ip: await getRequestIp(),
+    ip: requestContext.ip,
   });
 
   if (!allowed) {
+    await recordAuthAuditEventBestEffort({
+      eventType: "rate_limit_blocked",
+      reason: "request_rate_limited",
+      email,
+      ip: requestContext.ip,
+      userAgent: requestContext.userAgent,
+      dedupeBlockedEvent: true,
+    });
+
     return {
       step: "code",
       email,
@@ -73,7 +84,23 @@ export async function requestLoginCode(
       } catch (error) {
         console.error("Failed to send login code email.", error);
       }
+    } else {
+      await recordAuthAuditEventBestEffort({
+        eventType: "login_rejected",
+        reason: "invalid_credentials",
+        email,
+        ip: requestContext.ip,
+        userAgent: requestContext.userAgent,
+      });
     }
+  } else {
+    await recordAuthAuditEventBestEffort({
+      eventType: "login_rejected",
+      reason: "invalid_credentials",
+      email,
+      ip: requestContext.ip,
+      userAgent: requestContext.userAgent,
+    });
   }
 
   return {
@@ -89,21 +116,38 @@ export async function verifyLoginCode(
 ): Promise<LoginActionState> {
   const email = normalizeEmail(formData.get("email"));
   const code = String(formData.get("code") ?? "").trim();
+  const requestContext = await getRequestContext();
+  const { allowed } = await recordLoginCodeValidationAttempt({
+    ip: requestContext.ip,
+  });
 
-  if (!email || !code) {
+  if (!allowed) {
+    await recordAuthAuditEventBestEffort({
+      eventType: "rate_limit_blocked",
+      reason: "validation_rate_limited",
+      email,
+      ip: requestContext.ip,
+      userAgent: requestContext.userAgent,
+      dedupeBlockedEvent: true,
+    });
+
     return {
       step: "code",
       email,
       message: "",
-      error: "Informe o e-mail e o código recebido.",
+      error: genericCodeError,
     };
   }
 
-  const { allowed } = await recordLoginCodeValidationAttempt({
-    ip: await getRequestIp(),
-  });
+  if (!email || !code) {
+    await recordAuthAuditEventBestEffort({
+      eventType: "login_rejected",
+      reason: "invalid_credentials",
+      email,
+      ip: requestContext.ip,
+      userAgent: requestContext.userAgent,
+    });
 
-  if (!allowed) {
     return {
       step: "code",
       email,
@@ -113,6 +157,14 @@ export async function verifyLoginCode(
   }
 
   if (!/^\d{6}$/.test(code)) {
+    await recordAuthAuditEventBestEffort({
+      eventType: "login_rejected",
+      reason: "invalid_credentials",
+      email,
+      ip: requestContext.ip,
+      userAgent: requestContext.userAgent,
+    });
+
     return {
       step: "code",
       email,
@@ -127,6 +179,15 @@ export async function verifyLoginCode(
     : false;
 
   if (!user || !codeConsumed) {
+    await recordAuthAuditEventBestEffort({
+      eventType: "login_rejected",
+      reason: "invalid_credentials",
+      usuarioId: user?.id,
+      email,
+      ip: requestContext.ip,
+      userAgent: requestContext.userAgent,
+    });
+
     return {
       step: "code",
       email,
@@ -134,6 +195,14 @@ export async function verifyLoginCode(
       error: genericCodeError,
     };
   }
+
+  await recordAuthAuditEventBestEffort({
+    eventType: "login_success",
+    reason: "code_consumed",
+    usuarioId: user.id,
+    ip: requestContext.ip,
+    userAgent: requestContext.userAgent,
+  });
 
   await setSessionCookie({ email: user.email, role: user.role });
 
