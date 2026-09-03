@@ -61,7 +61,7 @@ Funil de vendas, contratos, comissões, gestão de proprietários, agenda de vis
 
 ### Domínio oficial
 
-O domínio oficial de acesso ao CRM é **https://admin.inglaterrapremium.com**.
+O domínio oficial de acesso ao CRM é **https://admin.inglaterrapremium.com.br**.
 
 ### Stack
 
@@ -293,7 +293,7 @@ Sequência segura: **construir → apontar → validar → remover.**
 ## 8\. Decisões ainda em aberto
 
 * \[ ] Nome final do sistema e do repositório
-* \[x] Domínio de acesso do CRM: `https://admin.inglaterrapremium.com`
+* \[x] Domínio de acesso do CRM: `https://admin.inglaterrapremium.com.br`
 * \[ ] Confirmar: leads armazenados ou apenas encaminhados? (ver seção LGPD)
 * \[ ] O site da matriz existe hoje em qual plataforma? Migra junto ou só consome a API?
 * \[ ] Estrutura visual — a definir a partir das imagens de referência já disponíveis
