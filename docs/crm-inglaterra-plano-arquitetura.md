@@ -244,6 +244,26 @@ Cada fase termina em algo verificável. Mesma disciplina do projeto atual: **um 
 Scaffold Next.js + autenticação (magic code) + papéis `admin`/`cadastro` + convites + rate limiting + auditoria de login.
 **Aceite:** login real funcionando, usuário `cadastro` bloqueado nas telas de admin, tentativa de força bruta barrada pelo rate limit.
 
+**Status:** concluída e validada em produção em `https://admin.inglaterrapremium.com.br`.
+
+Evidências registradas:
+
+* Login real por código entregue via Resend e validado no ambiente de produção.
+* Banco Neon real com migrações `001` a `006` aplicadas.
+* Códigos de login armazenados somente como hash, nunca em texto puro.
+* Consumo do código de login implementado de forma atômica, impedindo reutilização concorrente.
+* Rate limiting por e-mail e por IP na solicitação de códigos.
+* Limite de tentativas de validação do código por código emitido e por IP.
+* Sessão administrativa em cookie seguro: `httpOnly`, `Secure`, `SameSite=Lax`, assinado e com expiração aproximada de 7 dias.
+* Auditoria de autenticação com retenção de 24 meses.
+* Convites de usuário com validade de 48 horas e token protegido.
+* Aceite de convite somente por POST explícito, sem consumo automático no GET.
+* Gestão administrativa de usuários disponível para `admin`.
+* Proteção contra remoção do último administrador ativo.
+* Usuário `cadastro` validado em produção como bloqueado em `/admin/users`.
+* Fluxo real de convite, aceite, login e logout aprovado em produção.
+* Usuário utilizado exclusivamente em teste foi desativado quando aplicável.
+
 ### Fase 2 — Schema e Importação XML
 
 Schema completo + implementação da sincronização de fonte externa por XML, usando contrato interno normalizado e adaptadores por fornecedor/formato, incluindo `unidades\_publicacao`.
