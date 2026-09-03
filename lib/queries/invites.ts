@@ -202,13 +202,13 @@ async function markInviteSent(inviteId: string) {
 
 async function sendInviteIfNeeded({
   invite,
-  token,
+  inviteUrl,
   role,
   sendEmail,
   emailSender,
 }: {
   invite: UserInvite;
-  token: string;
+  inviteUrl: string | null;
   role: UserInviteRole;
   sendEmail: boolean;
   emailSender: InviteEmailSender;
@@ -217,7 +217,10 @@ async function sendInviteIfNeeded({
     return;
   }
 
-  const inviteUrl = buildInviteUrl(token);
+  if (!inviteUrl) {
+    throw new Error("APP_URL_REQUIRED");
+  }
+
   await emailSender({ to: invite.email, inviteUrl, role });
   await markInviteSent(invite.id);
 }
@@ -237,6 +240,7 @@ export async function createUserInvite({
 
   const token = generateInviteToken();
   const tokenHash = hashInviteToken(token);
+  const inviteUrl = sendEmail ? buildInviteUrl(token) : null;
 
   const created = await sql.begin(async (tx) => {
     await cleanupExpiredUserInvites(tx);
@@ -278,7 +282,7 @@ export async function createUserInvite({
 
   await sendInviteIfNeeded({
     invite: created.invite,
-    token,
+    inviteUrl,
     role,
     sendEmail,
     emailSender,
@@ -313,6 +317,7 @@ export async function resendUserInvite({
 
   const token = generateInviteToken();
   const tokenHash = hashInviteToken(token);
+  const inviteUrl = sendEmail ? buildInviteUrl(token) : null;
 
   const resent = await sql.begin(async (tx) => {
     await cleanupExpiredUserInvites(tx);
@@ -381,7 +386,7 @@ export async function resendUserInvite({
 
   await sendInviteIfNeeded({
     invite: resent.invite,
-    token,
+    inviteUrl,
     role: resent.invite.role,
     sendEmail,
     emailSender,

@@ -3,6 +3,7 @@ import { isIP } from "node:net";
 import { hashRateLimitIdentifier } from "@/lib/auth/identifiers";
 import { sql } from "@/lib/db";
 import { requireEnv } from "@/lib/env";
+import type postgres from "postgres";
 
 export type AuthAuditEventType =
   | "login_success"
@@ -12,7 +13,10 @@ export type AuthAuditEventType =
   | "invite_created"
   | "invite_resent"
   | "invite_revoked"
-  | "invite_accepted";
+  | "invite_accepted"
+  | "user_activated"
+  | "user_deactivated"
+  | "user_role_changed";
 export type AuthAuditReason =
   | "code_consumed"
   | "invalid_credentials"
@@ -22,7 +26,10 @@ export type AuthAuditReason =
   | "invite_created_by_admin"
   | "invite_resent_by_admin"
   | "invite_revoked_by_admin"
-  | "invite_accepted_by_user";
+  | "invite_accepted_by_user"
+  | "user_activated_by_admin"
+  | "user_deactivated_by_admin"
+  | "user_role_changed_by_admin";
 
 const auditRetentionWindow = "24 months";
 const auditCleanupBatchSize = 100;
@@ -32,6 +39,7 @@ type AuthAuditInput = {
   eventType: AuthAuditEventType;
   reason: AuthAuditReason;
   usuarioId?: string | null;
+  targetUsuarioId?: string | null;
   email?: string | null;
   ip: string;
   userAgent: string;
@@ -39,7 +47,9 @@ type AuthAuditInput = {
   testRunId?: string;
 };
 
-function normalizeIp(value: string) {
+type AuditSqlClient = typeof sql | postgres.TransactionSql<Record<string, never>>;
+
+export function normalizeAuditIp(value: string) {
   const normalized = value.trim();
 
   if (!normalized || normalized === "unknown-ip" || !isIP(normalized)) {
@@ -88,27 +98,30 @@ export async function cleanupExpiredAuthAuditEvents() {
   `;
 }
 
-export async function recordAuthAuditEvent({
+async function insertAuthAuditEvent(
+  txClient: AuditSqlClient,
+  {
   eventType,
   reason,
   usuarioId = null,
+  targetUsuarioId = null,
   email = null,
   ip,
   userAgent,
   dedupeBlockedEvent = false,
   testRunId,
-}: AuthAuditInput) {
+}: AuthAuditInput,
+) {
   const emailHash = usuarioId ? null : hashRateLimitIdentifier("email", email ?? "");
   const dedupeKey = dedupeBlockedEvent
     ? blockDedupeKey({ reason, usuarioId, emailHash, ip })
     : null;
 
-  await cleanupExpiredAuthAuditEvents();
-
-  await sql`
+  await txClient`
     insert into auth_audit_events (
       event_type,
       usuario_id,
+      target_usuario_id,
       email_hash,
       ip,
       user_agent,
@@ -119,8 +132,9 @@ export async function recordAuthAuditEvent({
     values (
       ${eventType},
       ${usuarioId},
+      ${targetUsuarioId},
       ${emailHash},
-      ${normalizeIp(ip)},
+      ${normalizeAuditIp(ip)},
       ${userAgent.slice(0, 512)},
       ${reason},
       ${dedupeKey},
@@ -128,6 +142,15 @@ export async function recordAuthAuditEvent({
     )
     on conflict (dedupe_key) where dedupe_key is not null do nothing
   `;
+}
+
+export async function recordAuthAuditEvent(input: AuthAuditInput) {
+  await cleanupExpiredAuthAuditEvents();
+  await insertAuthAuditEvent(sql, input);
+}
+
+export async function recordAuthAuditEventInTransaction(tx: postgres.TransactionSql<Record<string, never>>, input: AuthAuditInput) {
+  await insertAuthAuditEvent(tx, input);
 }
 
 export async function recordAuthAuditEventBestEffort(input: AuthAuditInput) {
