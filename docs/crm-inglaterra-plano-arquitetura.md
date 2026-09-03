@@ -14,7 +14,7 @@ Criar um sistema central, independente dos sites, para gerenciar o catálogo imo
 |Módulo|O que faz|
 |-|-|
 |**Catálogo**|Cadastro/edição de imóveis, lançamentos e condomínios, com galeria de imagens|
-|**Ingestão Kenlo**|Sincronização contínua do XML enquanto a Kenlo estiver em uso|
+|**Importação XML**|Sincronização de imóveis a partir de XML de sistemas fornecedores, por adaptadores|
 |**Curadoria**|Definir quais imóveis aparecem em qual site (filtro automático + override manual)|
 |**Usuários**|Login, papéis (`admin` / `cadastro`), convites|
 |**Configurações de contato**|E-mails que recebem leads, números de WhatsApp por unidade/contexto|
@@ -40,7 +40,7 @@ Funil de vendas, contratos, comissões, gestão de proprietários, agenda de vis
 │  │ Catálogo   │  │ Usuários │  │ Config   │  │
 │  └────────────┘  └──────────┘  └──────────┘  │
 │  ┌────────────┐  ┌──────────────────────┐    │
-│  │ Sync Kenlo │  │ Dashboard/Analytics  │    │
+│  │ Import XML │  │ Dashboard/Analytics  │    │
 │  └────────────┘  └──────────────────────┘    │
 └──────────┬───────────────────────────────────┘
            │  API REST — somente leitura
@@ -59,11 +59,23 @@ Funil de vendas, contratos, comissões, gestão de proprietários, agenda de vis
 3. **Sites não acessam o banco direto.** Só pela API — permite refatorar o schema sem quebrar os sites.
 4. **Multi-unidade desde o dia um.** Todo registro sabe a qual unidade pertence. Retrofit disso depois é caro.
 
+### Domínio oficial
+
+O domínio oficial de acesso ao CRM é **https://admin.inglaterrapremium.com**.
+
 ### Stack
 
 Mesma do site Premium, por consistência e porque já está validada: **Next.js 15 (App Router) + TypeScript + Tailwind + Postgres (Neon) + Vercel + Vercel Blob + Resend**.
 
 Um Blob Store novo, próprio do CRM (privado, servido por rota proxy — mesmo padrão já validado em `/api/blob-image`).
+
+### Importação de imóveis
+
+A importação de imóveis deve aceitar XML de qualquer CRM ou sistema fornecedor, sem dependência estrutural da Kenlo ou de outro fornecedor específico.
+
+A arquitetura de importação usa um **contrato interno normalizado** para o catálogo. Cada origem externa é tratada por um adaptador separado por fornecedor/formato, responsável por ler o XML da fonte e convertê-lo para esse contrato interno antes de persistir os dados. O primeiro adaptador deve atender à fonte XML utilizada atualmente; a Kenlo pode permanecer como referência de fonte inicial ou legada, mas não como acoplamento permanente do catálogo.
+
+Com essa separação, a origem XML pode ser trocada sem remodelar o schema do catálogo, a API pública ou a interface administrativa.
 
 \---
 
@@ -73,7 +85,7 @@ Um Blob Store novo, próprio do CRM (privado, servido por rota proxy — mesmo p
 
 ```
 imoveis
-  id, codigo, origem ('kenlo' | 'manual'), kenlo\_id
+  id, codigo, origem ('xml' | 'manual'), origem\_fornecedor, origem\_id
   tipo, finalidade (venda/locacao), preco\_venda, preco\_locacao
   bairro\_id, endereco, latitude, longitude
   area, suites, quartos, banheiros, vagas
@@ -232,10 +244,10 @@ Cada fase termina em algo verificável. Mesma disciplina do projeto atual: **um 
 Scaffold Next.js + autenticação (magic code) + papéis `admin`/`cadastro` + convites + rate limiting + auditoria de login.
 **Aceite:** login real funcionando, usuário `cadastro` bloqueado nas telas de admin, tentativa de força bruta barrada pelo rate limit.
 
-### Fase 2 — Schema e ingestão Kenlo
+### Fase 2 — Schema e Importação XML
 
-Schema completo + migração do `kenlo-sync.ts` do site para o CRM, incluindo `unidades\_publicacao`.
-**Aceite:** sincronização rodando no CRM, \~2.200 imóveis no banco, log de sincronização correto, registros `origem='manual'` protegidos.
+Schema completo + implementação da sincronização de fonte externa por XML, usando contrato interno normalizado e adaptadores por fornecedor/formato, incluindo `unidades\_publicacao`.
+**Aceite:** sincronização XML rodando no CRM a partir da fonte atual, imóveis no banco, log de sincronização correto, registros `origem='manual'` protegidos e possibilidade de trocar a origem sem remodelar catálogo, API ou interface.
 
 ### Fase 3 — Catálogo
 
@@ -272,7 +284,7 @@ Fora do escopo deste plano — quando chegar a hora, a API já estará pronta pa
 
 **Não remover nada do site Premium antes da Fase 5 estar validada.**
 
-O `/admin` atual é a única ferramenta de gestão existente hoje. Removê-lo antes do CRM estar operacional deixaria o site sem qualquer forma de curadoria, dependente exclusivamente do filtro automático da Kenlo — justamente durante a transição para longe dela.
+O `/admin` atual é a única ferramenta de gestão existente hoje. Removê-lo antes do CRM estar operacional deixaria o site sem qualquer forma de curadoria, dependente exclusivamente do filtro automático da fonte externa atual — justamente durante a transição para a nova arquitetura de importação XML.
 
 Sequência segura: **construir → apontar → validar → remover.**
 
@@ -281,7 +293,7 @@ Sequência segura: **construir → apontar → validar → remover.**
 ## 8\. Decisões ainda em aberto
 
 * \[ ] Nome final do sistema e do repositório
-* \[ ] Domínio de acesso do CRM (ex: `crm.imobiliariainglaterra.com.br` ou subdomínio da Vercel)
+* \[x] Domínio de acesso do CRM: `https://admin.inglaterrapremium.com`
 * \[ ] Confirmar: leads armazenados ou apenas encaminhados? (ver seção LGPD)
 * \[ ] O site da matriz existe hoje em qual plataforma? Migra junto ou só consome a API?
 * \[ ] Estrutura visual — a definir a partir das imagens de referência já disponíveis

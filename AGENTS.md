@@ -26,7 +26,7 @@ Hoje serve o site Inglaterra Premium. Futuramente poderá servir o site da matri
 * Deploy: Vercel (auto-deploy a partir do GitHub)
 * Armazenamento de imagens: Vercel Blob (privado, servido por rota proxy)
 * E-mail transacional: Resend
-* Origem de dados externa: XML da Kenlo (somente leitura do XML — nenhuma outra integração com a Kenlo)
+* Origem de dados externa: importação XML por adaptadores, sem dependência estrutural de um fornecedor específico. A Kenlo pode ser usada como fonte inicial/legada quando aplicável.
 
 ## Deploy — regra crítica
 
