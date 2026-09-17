@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { CrmNavigation } from "@/components/crm-navigation";
 import { AdminUsersPanel } from "@/components/admin-users-panel";
 import { getSessionFromCookie } from "@/lib/auth/session";
 import { getAdminUsersOverview } from "@/lib/queries/users";
@@ -22,6 +23,7 @@ export default async function AdminUsersPage() {
   return (
     <main className="min-h-screen px-6 py-8">
       <div className="mx-auto max-w-6xl">
+        <CrmNavigation role={overview.currentUser.role} />
         <header className="border-b border-slate-200 pb-6">
           <p className="text-sm font-semibold uppercase tracking-wide text-emerald-800">CRM Inglaterra</p>
           <h1 className="mt-2 text-3xl font-semibold text-slate-950">Usuarios e convites</h1>

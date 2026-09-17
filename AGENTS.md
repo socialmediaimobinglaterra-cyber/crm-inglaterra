@@ -68,6 +68,10 @@ Apenas e-mails do domínio `@imobiliariainglaterra.com.br` têm acesso ao sistem
 
 ## Regras de execução
 
+* Siga a sequência e os critérios de fechamento em `docs/plano-de-conclusao.md`, aprovados pelo usuário. Atualize o andamento ao fechar cada entrega.
+* Teste proporcionalmente ao risco: casos diretamente afetados e regressões necessárias. Não repita testes/build aprovados sem mudança relevante, falha ou evidência nova. Mudança somente documental requer revisão do diff, sem build.
+* Após os critérios de aceite e a revisão final passarem, avance. Não reabra ciclos de revisão sem um problema concreto novo.
+
 * **Um objetivo por tarefa.** Não expanda escopo além do que foi pedido nesta tarefa específica.
 * Se um dado necessário não existir no banco ou nos documentos, **pergunte antes de inventar ou improvisar**.
 * Nunca invente valores de configuração (preços mínimos, listas de bairros, e-mails, números de telefone) — se não estiver documentado, pergunte.

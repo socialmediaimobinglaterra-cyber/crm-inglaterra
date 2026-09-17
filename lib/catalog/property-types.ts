@@ -1,0 +1,16 @@
+export const propertyTypes = [
+  { key: "apartamento", label: "Apartamento", prefix: "AP" },
+  { key: "barracao", label: "Barracão", prefix: "BA" },
+  { key: "casa", label: "Casa", prefix: "CA" },
+  { key: "chacara", label: "Chácara", prefix: "CH" },
+  { key: "cobertura", label: "Cobertura", prefix: "CO" },
+  { key: "fazenda", label: "Fazenda", prefix: "FA" },
+  { key: "galpao", label: "Galpão", prefix: "GA" },
+  { key: "loja", label: "Loja", prefix: "LO" },
+  { key: "predio", label: "Prédio", prefix: "PR" },
+  { key: "sala", label: "Sala", prefix: "SA" },
+  { key: "salao", label: "Salão", prefix: "SL" },
+  { key: "sitio", label: "Sítio", prefix: "SI" },
+  { key: "terreno", label: "Terreno", prefix: "TE" },
+  { key: "area", label: "Área", prefix: "AR" },
+] as const;

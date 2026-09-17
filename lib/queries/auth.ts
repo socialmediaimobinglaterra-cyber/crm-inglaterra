@@ -33,6 +33,7 @@ export async function getActiveUserByEmail(email: string) {
 
 export async function createLoginCode(email: string, codeHash: string) {
   await sql.begin(async (tx) => {
+    await tx`select pg_advisory_xact_lock(hashtextextended(${'login-code:' + email}, 0))`;
     await tx`
       update codigos_login
       set used_at = now()
@@ -54,6 +55,7 @@ export async function consumeLoginCode(
   verifyLoginCodeHash: VerifyLoginCodeHash,
 ) {
   return sql.begin(async (tx) => {
+    await tx`select pg_advisory_xact_lock(hashtextextended(${'login-code:' + email}, 0))`;
     const codes = await tx<LoginCode[]>`
       select id, email, code_hash, expires_at, used_at, created_at, failed_attempts, invalidated_at
       from codigos_login

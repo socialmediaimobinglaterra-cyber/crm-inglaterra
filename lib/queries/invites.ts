@@ -79,6 +79,10 @@ function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
 }
 
+async function lockInviteEmail(tx: Transaction, email: string) {
+  await tx`select pg_advisory_xact_lock(hashtextextended(${'user-invite:' + email}, 0))`;
+}
+
 function assertAllowedDomain(email: string) {
   if (!email.endsWith("@imobiliariainglaterra.com.br")) {
     throw new Error("INVALID_INVITE_EMAIL_DOMAIN");
@@ -242,8 +246,9 @@ export async function createUserInvite({
   const tokenHash = hashInviteToken(token);
   const inviteUrl = sendEmail ? buildInviteUrl(token) : null;
 
+  await cleanupExpiredUserInvites();
   const created = await sql.begin(async (tx) => {
-    await cleanupExpiredUserInvites(tx);
+    await lockInviteEmail(tx, normalizedEmail);
 
     const admin = await requireActiveAdmin(tx, actorEmail);
 
@@ -319,8 +324,9 @@ export async function resendUserInvite({
   const tokenHash = hashInviteToken(token);
   const inviteUrl = sendEmail ? buildInviteUrl(token) : null;
 
+  await cleanupExpiredUserInvites();
   const resent = await sql.begin(async (tx) => {
-    await cleanupExpiredUserInvites(tx);
+    await lockInviteEmail(tx, normalizedEmail);
 
     const admin = await requireActiveAdmin(tx, actorEmail);
 
@@ -417,8 +423,9 @@ export async function revokeUserInvite({
   const normalizedEmail = normalizeEmail(email);
   assertAllowedDomain(normalizedEmail);
 
+  await cleanupExpiredUserInvites();
   const revoked = await sql.begin(async (tx) => {
-    await cleanupExpiredUserInvites(tx);
+    await lockInviteEmail(tx, normalizedEmail);
 
     const admin = await requireActiveAdmin(tx, actorEmail);
 
@@ -449,8 +456,14 @@ export async function revokeUserInvite({
 export async function acceptUserInvite({ token, requestContext, testRunId }: AcceptInviteInput) {
   const tokenHash = hashInviteToken(token);
 
+  await cleanupExpiredUserInvites();
   const accepted = await sql.begin(async (tx) => {
-    await cleanupExpiredUserInvites(tx);
+    // Discover the lock key without holding a row lock; re-read after locking.
+    const candidates = await tx<{ email: string }[]>`
+      select email from convites_usuario where token_hash = ${tokenHash} limit 1
+    `;
+    if (!candidates[0]) return null;
+    await lockInviteEmail(tx, candidates[0].email);
 
     const invites = await tx<UserInvite[]>`
       select id, email, role, token_hash, invited_by, expires_at, sent_at, used_at, revoked_at, created_at

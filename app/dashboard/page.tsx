@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { logout } from "@/app/dashboard/actions";
+import { CrmNavigation } from "@/components/crm-navigation";
 import { getSessionFromCookie } from "@/lib/auth/session";
 import { getActiveUserByEmail } from "@/lib/queries/auth";
 
@@ -19,16 +19,12 @@ export default async function DashboardPage() {
   return (
     <main className="min-h-screen px-6 py-8">
       <div className="mx-auto max-w-5xl">
+        <CrmNavigation role={user.role} />
         <header className="flex flex-col gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-emerald-800">CRM Inglaterra</p>
             <h1 className="mt-2 text-3xl font-semibold text-slate-950">Dashboard</h1>
           </div>
-          <form action={logout}>
-            <button className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition hover:bg-slate-50">
-              Sair
-            </button>
-          </form>
         </header>
 
         <section className="py-8">

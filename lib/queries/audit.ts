@@ -61,8 +61,6 @@ export function normalizeAuditIp(value: string) {
 
 function blockDedupeKey(input: {
   reason: AuthAuditReason;
-  usuarioId?: string | null;
-  emailHash: string | null;
   ip: string;
 }) {
   const bucket = Math.floor(Date.now() / 1000 / blockDedupeWindowSeconds);
@@ -72,11 +70,7 @@ function blockDedupeKey(input: {
     .update(":")
     .update(input.reason)
     .update(":")
-    .update(input.usuarioId ?? "")
-    .update(":")
-    .update(input.emailHash ?? "")
-    .update(":")
-    .update(input.ip)
+    .update(normalizeAuditIp(input.ip) ?? "unknown-ip")
     .update(":")
     .update(String(bucket))
     .digest("hex");
@@ -114,7 +108,7 @@ async function insertAuthAuditEvent(
 ) {
   const emailHash = usuarioId ? null : hashRateLimitIdentifier("email", email ?? "");
   const dedupeKey = dedupeBlockedEvent
-    ? blockDedupeKey({ reason, usuarioId, emailHash, ip })
+    ? blockDedupeKey({ reason, ip })
     : null;
 
   await txClient`

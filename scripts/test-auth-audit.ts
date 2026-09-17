@@ -90,17 +90,17 @@ async function main() {
       testRunId,
     });
 
-    for (let index = 0; index < 25; index += 1) {
-      await recordAuthAuditEvent({
+    await Promise.all(Array.from({ length: 25 }, (_, index) =>
+      recordAuthAuditEvent({
         eventType: "rate_limit_blocked",
         reason: "validation_rate_limited",
-        email: unknownEmail,
+        email: `variant-${index}-${unknownEmail}`,
         ip: auditIp,
         userAgent: longUserAgent,
         dedupeBlockedEvent: true,
         testRunId,
-      });
-    }
+      }),
+    ));
 
     await recordAuthAuditEvent({
       eventType: "logout",

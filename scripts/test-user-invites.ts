@@ -381,6 +381,29 @@ async function main() {
       "Concurrent invite acceptance allowed more than one success.",
     );
 
+    const mixedEmail = testEmail("mixed-lock-order");
+    const mixedInput = {
+      actorEmail: actorAdminEmail, email: mixedEmail, role: "cadastro" as const,
+      requestContext, sendEmail: false, testRunId,
+    };
+    await createUserInvite(mixedInput);
+    const mixedResults = await Promise.all([
+      createUserInvite(mixedInput),
+      resendUserInvite(mixedInput),
+    ]);
+    observedTokens.push(...mixedResults.map((result) => result.token));
+    const remaining = await sql<{ token_hash: string }[]>`
+      select token_hash from convites_usuario
+      where email = ${mixedEmail} and used_at is null and revoked_at is null
+    `;
+    assert(remaining.length === 1, "Concurrent create/resend left multiple valid invites.");
+    const current = mixedResults.find((result) => hashInviteToken(result.token) === remaining[0].token_hash)!;
+    await Promise.all([
+      acceptUserInvite({ token: current.token, requestContext, testRunId }),
+      revokeUserInvite({ actorEmail: actorAdminEmail, email: mixedEmail, requestContext, testRunId }),
+    ]);
+    await assertGenericInvalidInvite(current.token, "Mixed acceptance/revocation left a reusable token.");
+
     await assertNoRawTokenStored(observedTokens);
     await assertAuditEvents();
 
@@ -487,6 +510,7 @@ async function main() {
             resendInvalidatesPreviousToken: true,
             laterAdminChangeNotOverwritten: true,
             concurrentAcceptanceSuccesses: concurrentResults.filter((result) => result.accepted).length,
+            concurrentCreateResendAndAcceptRevoke: true,
             rawTokensStored: false,
             lastActiveAdminProtectedWhenApplicable: activeAdmins[0].count === 1,
           },
