@@ -3,12 +3,24 @@ import { randomUUID } from "node:crypto";
 import { sql } from "@/lib/db";
 import { catalogEditSchema, readCatalogEdit, formatCatalogPrice } from "@/lib/catalog/editor";
 import { getCatalogEditor, listCatalog, saveCatalogEdit } from "@/lib/queries/catalog";
+import { canEditCatalog, canPublishCatalog, isUserRole } from "@/lib/auth/roles";
+import { createSessionToken, parseSessionToken } from "@/lib/auth/session";
 
 const values = catalogEditSchema.parse({ title: "Casa de teste", description: null,
   prices: { sale: "100000.25", rent: null, condominium: null, iptu: null },
   areas: { total: "100.5", usable: null, private: null, unit: "m2" },
   rooms: { bedrooms: 0, suites: null, bathrooms: 1, livingRooms: null, parkingSpaces: 0 } });
 async function main() {
+  for (const role of ['admin', 'cadastro', 'corretor'] as const) {
+    assert(isUserRole(role)); assert(canEditCatalog(role));
+    assert.equal(canPublishCatalog(role), role !== 'corretor');
+    assert.equal(parseSessionToken(createSessionToken({ email: 'fixture@example.invalid', role }))?.role, role);
+  }
+  assert.equal(canEditCatalog('owner'), false);
+  assert.equal(canPublishCatalog('owner'), false);
+  for (const key of ['ativo', 'status_publicacao', 'unidades_publicacao']) {
+    assert.equal(catalogEditSchema.safeParse({ ...values, [key]: true }).success, false);
+  }
   assert.equal(formatCatalogPrice("9007199254740993.25"), "R$ 9.007.199.254.740.993,25");
   for (const price of ["0", "-1", "NaN", "1e4"]) assert.equal(catalogEditSchema.safeParse({ ...values, prices: { ...values.prices, sale: price } }).success, false);
   assert.equal(catalogEditSchema.safeParse({ ...values, role: "admin" }).success, false);
@@ -32,13 +44,14 @@ async function main() {
   const run = randomUUID();
   const admin = `editor-admin-${run}@imobiliariainglaterra.com.br`;
   const cadastro = `editor-cadastro-${run}@imobiliariainglaterra.com.br`;
+  const corretor = `editor-corretor-${run}@imobiliariainglaterra.com.br`;
   const inactive = `editor-inactive-${run}@imobiliariainglaterra.com.br`;
   const id = randomUUID();
   try {
-    await sql`insert into usuarios(email,role,ativo) values (${admin},'admin',true),(${cadastro},'cadastro',true),(${inactive},'cadastro',false)`;
+    await sql`insert into usuarios(email,role,ativo) values (${admin},'admin',true),(${cadastro},'cadastro',true),(${corretor},'corretor',true),(${inactive},'cadastro',false)`;
     await sql`insert into imoveis(id,codigo,origem,dados_origem,endereco_privado,source_hash)
       values (${id},${run},'manual',${sql.json({ ...values, negotiation: 'venda', publicLocation: { city: 'Cidade de teste', officialNeighborhood: 'Bairro de teste' } })},'{}',${'a'.repeat(64)})`;
-    for (const email of [admin,cadastro]) {
+    for (const email of [admin,cadastro,corretor]) {
       const list = await listCatalog(email, { q: run });
       assert.equal(list.total,1);
       assert.equal(Object.hasOwn(list.items[0], 'endereco_privado'), false);
@@ -55,14 +68,19 @@ async function main() {
     assert(rejected?.status === 'rejected' && rejected.reason.message === 'CATALOG_CONFLICT');
     const after = await getCatalogEditor(admin,id);
     assert.equal(after?.values.title,'Titulo revisado');
+    assert(after);
+    await saveCatalogEdit(corretor,id,after.version,{...values,title:'Edicao corretor'});
+    assert.equal((await getCatalogEditor(corretor,id))?.values.title,'Edicao corretor');
+    await sql`update usuarios set ativo=false where email=${corretor}`;
+    await assert.rejects(() => listCatalog(corretor, {}), /CATALOG_FORBIDDEN/);
     const [row] = await sql`select dados_origem->>'title' as original, ativo, status_publicacao from imoveis where id=${id}`;
     assert.equal(row.original,values.title); assert.equal(row.ativo,false); assert.equal(row.status_publicacao,'pending_review');
     assert.equal((await listCatalog(admin,{q:run, negotiation:'locacao'})).total,0);
     console.log('PASS: Neon authorization, listing, filters, editing, concurrent conflict and source/publication preservation');
   } finally {
     await sql`delete from imoveis where id=${id}`;
-    await sql`delete from usuarios where email in (${admin},${cadastro},${inactive})`;
-    const [remaining] = await sql`select (select count(*) from imoveis where id=${id}) + (select count(*) from usuarios where email in (${admin},${cadastro},${inactive})) as total`;
+    await sql`delete from usuarios where email in (${admin},${cadastro},${corretor},${inactive})`;
+    const [remaining] = await sql`select (select count(*) from imoveis where id=${id}) + (select count(*) from usuarios where email in (${admin},${cadastro},${corretor},${inactive})) as total`;
     assert.equal(Number(remaining.total),0);
     console.log('Temporary test data removed');
   }

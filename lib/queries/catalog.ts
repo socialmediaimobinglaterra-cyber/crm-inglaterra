@@ -6,11 +6,13 @@ import { sql } from "@/lib/db";
 import { catalogEditSchema, catalogFiltersSchema, catalogIdSchema, catalogVersionSchema, type CatalogEdit } from "@/lib/catalog/editor";
 import { saveGalleryDraft } from './catalog-images';
 import type { GalleryDraft } from '@/lib/catalog/gallery-draft';
+import type { PublicationDraft } from '@/lib/catalog/publication';
+import { validatePublicationChange, savePublication } from './catalog-publication';
 
 type Tx = postgres.TransactionSql<Record<string, never>>;
 async function authorize(tx: Tx, email: string) {
   const rows = await tx`select id from usuarios where email = ${email.trim().toLowerCase()}
-    and ativo and role in ('admin', 'cadastro') for share`;
+    and ativo and role in ('admin', 'cadastro', 'corretor') for share`;
   if (!rows.length) throw new Error("CATALOG_FORBIDDEN");
 }
 
@@ -63,13 +65,14 @@ export async function getCatalogEditor(email: string, id: string) {
   });
 }
 
-export async function saveCatalogEdit(email: string, id: string, version: string, input: CatalogEdit, galleryDraft?: GalleryDraft) {
+export async function saveCatalogEdit(email: string, id: string, version: string, input: CatalogEdit, galleryDraft?: GalleryDraft, publicationDraft?: PublicationDraft) {
   catalogIdSchema.parse(id);
   catalogVersionSchema.parse(version);
   const values = catalogEditSchema.parse(input);
   const negotiation = values.prices.sale ? (values.prices.rent ? "venda_locacao" : "venda") : "locacao";
   await sql.begin(async tx => {
     await authorize(tx, email);
+    const publication = publicationDraft ? await validatePublicationChange(tx,email,id,publicationDraft) : undefined;
     const { privateLocation, ...publicValues } = values;
     const result = await tx`update imoveis set curadoria = curadoria || ${tx.json({ ...publicValues, negotiation })}::jsonb,
       curadoria_privada = curadoria_privada || ${tx.json(privateLocation ?? {})}::jsonb,
@@ -77,6 +80,7 @@ export async function saveCatalogEdit(email: string, id: string, version: string
       where id = ${id} and md5(curadoria::text || curadoria_privada::text || source_hash) = ${version} returning id`;
     if (!result.length) throw new Error("CATALOG_CONFLICT");
     if (galleryDraft) await saveGalleryDraft(tx,id,galleryDraft);
+    if (publication) await savePublication(tx,id,publication);
   });
 }
 

@@ -1,4 +1,5 @@
 import { requireEnv } from "@/lib/env";
+import type { UserRole } from "@/lib/auth/roles";
 
 type SendLoginCodeInput = {
   to: string;
@@ -8,7 +9,7 @@ type SendLoginCodeInput = {
 type SendUserInviteInput = {
   to: string;
   inviteUrl: string;
-  role: "admin" | "cadastro";
+  role: UserRole;
 };
 
 function escapeHtml(value: string) {

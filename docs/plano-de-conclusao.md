@@ -60,9 +60,27 @@ Validacao: `test:catalog-contract` com fixtures anonimizadas; `test:auth-concurr
 
 Entrega 2 documentada em `docs/catalog-import.md`. Migracao 007 aplicada; adaptador e testes de banco aprovados. Apos autorizacao explicita, carga real inseriu 2.221 imoveis e 45.152 referencias de fotos. Segunda execucao manteve os 2.221 registros inalterados, sem insercoes ou atualizacoes. Consultas somente leitura confirmaram ausencia de duplicatas, todos inativos/pendentes e nenhuma unidade publicada. Nao ha agendamento automatico nem migracao de imagens para Blob nesta entrega.
 
-Proxima acao: validar upload real no Blob privado em ambiente autorizado com OIDC; depois curadoria/publicacao e entidades relacionadas. Usuario confirmou o formulario manual legivel e completo, sem confirmar salvamento de um imovel real. Galeria implementada e testada com Neon real e armazenamento simulado; upload real e verificacao visual da galeria permanecem pendentes. Nao repetir a importacao nem baterias ja aprovadas sem mudanca relevante ou evidencia nova. Sem commit, push ou deploy; a producao ainda usa o codigo anterior.
+Proxima acao: curadoria/publicacao por unidade. Catalogo e galeria publicados nos commits 9bfc219 e f6b02b9. Usuario confirmou no fluxo de producao: selecao de fotos, miniaturas, salvamento, persistencia apos atualizar e alteracao persistente da principal. Nao repetir esses testes sem mudanca relevante. Permissao confirmada: admin e cadastro podem cadastrar, editar e publicar; corretor pode cadastrar/editar, mas nao publicar. Antes de implementar elegibilidade automatica, confirmar regras comerciais do Premium; nao existem criterios concretos de preco/tipo/localizacao documentados neste repositorio. Nenhum acesso ao repositorio do site autorizado.
 
-## Interface inicial do catalogo - 2026-09-17
+## Papel corretor - 2026-09-17
+
+- Novo papel disponivel no codigo de convites, gestao de usuarios, sessao e autorizacao de catalogo/fotos. Administracao de contas/configuracoes continua exclusiva de admin ativo confirmado no banco. Nenhuma conta real criada ou alterada.
+- Migracao 011 aplicada no Neon com autorizacao do usuario: adiciona somente o valor corretor ao enum compartilhado por usuarios e convites; anteriores preservadas e nao reaplicadas. Enum e registro unico em schema_migrations confirmados por consulta somente leitura. Nenhuma conta existente alterada.
+- Regra de publicacao centralizada: somente admin/cadastro. A entrega de publicacao manual abaixo aplica essa regra dentro da transacao; edicao sem pedido explicito de publicacao preserva o estado existente.
+- Teste local de papeis/sessao e entradas estritas aprovado; build aprovado, nao repetido sem mudanca de codigo. Testes admin-users, catalog-editor --db, catalog-manual --corretor e catalog-images --db --corretor aprovados no Neon: convite/aceite, bloqueio administrativo, criacao/edicao, preservacao do estado de publicacao, fotos e concorrencia.
+- Fixtures removidas e limpeza verificada pelos testes. Nenhum e-mail real enviado; Blob simulado, sem novo teste de OIDC/Blob real. Numeros consumidos pela sequencia de codigos de teste nao sao reutilizados. Nenhum usuario ou imovel real alterado. Validacao navegavel do novo papel em producao permanece pendente de publicacao autorizada do codigo.
+- Servidor local de testes encerrado antes do build. Sem commit, push ou deploy.
+
+## Publicacao manual por unidade - 2026-09-17
+
+- Editor de imovel existente mostra Premium e Matriz como checkboxes. Dados, galeria e mudanca explicita de publicacao usam o mesmo Salvar alteracoes e a mesma transacao. Corretor visualiza o estado, sem habilitar controles; tentativa manipulada e negada no servidor.
+- Usuario ativo e papel confirmados no banco com lock compartilhado, antes do lock exclusivo do imovel. Versao de publicacao inclui ultima alteracao do imovel e estado das unidades; rejeita pedido desatualizado. Unidades gravadas em ordem deterministica. Falha de galeria ou conflito desfaz a transacao completa.
+- Usa unidades_publicacao existente: inclusao_manual explicita, sem alterar elegibilidade automatica. Uma ou mais unidades selecionadas deixam o imovel ativo/published; nenhuma deixa inativo/unpublished. Nenhum criterio comercial automatico inventado; nenhuma nova migracao.
+- Teste catalog-publication aprovado no Neon: admin/cadastro autorizados, corretor/inativo/ausente e papel rebaixado bloqueados, unidades independentes, retirada de publicacao, concorrencia, rollback e origem preservada. Regressoes catalog-editor e catalog-images --corretor aprovadas; Blob simulado, fixtures removidas. Build e diff check aprovados.
+- Validacao manual local concluida pelo usuario: secao clara e legivel, selecao de Premium habilitou Salvar alteracoes, salvamento concluido e opcao preservada apos atualizar. O usuario registrou a publicacao do imovel escolhido no CRM; nenhuma integracao do site alterada. Commit e push deste conjunto autorizados pelo usuario apos o aceite.
+- Este estado registra a decisao no CRM, nao entrega conteudo ao site nesta etapa. API publica, migracao de fotos externas e integracao Premium continuam pendentes. A regra aprovada permite ao corretor editar conteudo de imovel ja marcado como publicado, mas nao mudar suas unidades; nao foi criado fluxo de aprovacao de revisoes.
+
+## Historico da interface inicial do catalogo - 2026-09-17
 
 - `/catalog`: paginacao de 25 registros, busca por codigo/titulo/bairro/cidade, filtros por negociacao e publicacao. Dados do Neon, sem lista simulada.
 - `/catalog/[id]`: edicao de titulo, descricao, precos, areas e ambientes. Valores monetarios permanecem strings decimais; negociacao deriva dos precos positivos.

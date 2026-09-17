@@ -26,7 +26,8 @@ async function main() {
   const blobs=new Map<string,Buffer>();
   const storage:ImageStorage={ async write(id,full,thumb){blobs.set(imagePath(id),full);blobs.set(imagePath(id,true),thumb);},async remove(id){blobs.delete(imagePath(id));blobs.delete(imagePath(id,true));} };
   try {
-    await sql`insert into usuarios(email,role,ativo) values(${email},'cadastro',true)`;
+    const role = process.argv.includes('--corretor') ? 'corretor' : 'cadastro';
+    await sql`insert into usuarios(email,role,ativo) values(${email},${role},true)`;
     for(const id of [property,other]) await sql`insert into imoveis(id,codigo,origem,dados_origem,endereco_privado,source_hash) values(${id},${id},'manual','{"media":[]}','{}',${'a'.repeat(64)})`;
     const first=await uploadCatalogImage(email,property,png,storage);
     const second=await uploadCatalogImage(email,property,png,storage);

@@ -1,12 +1,13 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { requireEnv } from "@/lib/env";
+import { isUserRole, type UserRole } from "./roles";
 
 export const sessionCookieName = "crm_admin_session";
 
 export type AdminSession = {
   email: string;
-  role: "admin" | "cadastro";
+  role: UserRole;
   exp: number;
 };
 
@@ -51,7 +52,7 @@ export function parseSessionToken(token: string | undefined) {
   try {
     const session = JSON.parse(base64UrlDecode(payload)) as AdminSession;
 
-    if (!session.email || !session.role || !session.exp || session.exp <= Math.floor(Date.now() / 1000)) {
+    if (!session.email || !isUserRole(session.role) || !session.exp || session.exp <= Math.floor(Date.now() / 1000)) {
       return null;
     }
 

@@ -1,9 +1,10 @@
 import { sql } from "@/lib/db";
+import type { UserRole } from "@/lib/auth/roles";
 
 export type Usuario = {
   id: string;
   email: string;
-  role: "admin" | "cadastro";
+  role: UserRole;
   ativo: boolean;
   created_at: Date;
 };

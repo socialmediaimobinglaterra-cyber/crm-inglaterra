@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { hashInviteToken } from "@/lib/auth/invites";
 import { sql } from "@/lib/db";
-import { createUserInvite, resendUserInvite, revokeUserInvite } from "@/lib/queries/invites";
+import { createUserInvite, resendUserInvite, revokeUserInvite, acceptUserInvite } from "@/lib/queries/invites";
+import type { UserRole } from "@/lib/auth/roles";
 import {
   changeUserRole,
   changeUserStatus,
@@ -28,7 +29,7 @@ function assert(condition: boolean, message: string) {
   }
 }
 
-async function createUser(email: string, role: "admin" | "cadastro", ativo: boolean) {
+async function createUser(email: string, role: UserRole, ativo: boolean) {
   const rows = await sql<{ id: string }[]>`
     insert into usuarios (email, role, ativo)
     values (${email}, ${role}, ${ativo})
@@ -78,6 +79,7 @@ async function assertNoTemporaryData() {
 async function main() {
   const actorEmail = testEmail("actor-admin");
   const cadastroEmail = testEmail("actor-cadastro");
+  const corretorEmail = testEmail("actor-corretor");
   const inactiveEmail = testEmail("actor-inactive");
   const targetEmail = testEmail("target");
   const inviteEmail = testEmail("invite");
@@ -92,6 +94,19 @@ async function main() {
     await createUser(cadastroEmail, "cadastro", true);
     await createUser(inactiveEmail, "admin", false);
     const targetId = await createUser(targetEmail, "cadastro", true);
+    await createUser(corretorEmail, "corretor", true);
+    assert((await getAdminUsersOverview(corretorEmail)) === null, "Corretor received admin data.");
+    await expectRejected(changeUserRole({ actorEmail: corretorEmail, targetUserId: targetId, role: 'admin', requestContext, testRunId }), 'Corretor changed a role.');
+    await expectRejected(changeUserStatus({ actorEmail: corretorEmail, targetUserId: targetId, ativo: false, requestContext, testRunId }), 'Corretor changed status.');
+    await expectRejected(createUserInvite({ actorEmail: corretorEmail, email: testEmail('blocked-corretor'), role: 'admin', requestContext, sendEmail: false, testRunId }), 'Corretor invited a user.');
+    const brokerInvite = await createUserInvite({ actorEmail, ...validateInviteInput(testEmail('broker-invite'), 'corretor'), requestContext, sendEmail: false, testRunId });
+    assert((await acceptUserInvite({ token: brokerInvite.token, requestContext, testRunId })).accepted, 'Corretor invite rejected.');
+    const [broker] = await sql`select role, ativo from usuarios where email=${testEmail('broker-invite')}`;
+    assert(broker.role === 'corretor' && broker.ativo, 'Corretor role not preserved on acceptance.');
+    await changeUserRole({ actorEmail, targetUserId: targetId, role: 'corretor', requestContext, testRunId });
+    const [changedBroker] = await sql`select role from usuarios where id=${targetId}`;
+    assert(changedBroker.role === 'corretor', 'Admin could not assign corretor.');
+    console.log('PASS: corretor invite/acceptance, role assignment and admin access denied');
     const concurrentOneId = await createUser(concurrentOneEmail, "admin", true);
     const concurrentTwoId = await createUser(concurrentTwoEmail, "admin", true);
 

@@ -25,7 +25,8 @@ async function* document(code: string) {
 }
 async function main() {
   try {
-    await sql`insert into usuarios(email,role,ativo) values(${email},'cadastro',true)`;
+    const role = process.argv.includes('--corretor') ? 'corretor' : 'cadastro';
+    await sql`insert into usuarios(email,role,ativo) values(${email},${role},true)`;
     await Promise.all(ids.map(id => createManualCatalog(email,id,values)));
     const manual = await sql`select id,codigo,ativo,origem,endereco_privado from imoveis where id in ${sql(ids)} order by codigo`;
     assert.equal(new Set(manual.map(row=>row.codigo)).size,3);

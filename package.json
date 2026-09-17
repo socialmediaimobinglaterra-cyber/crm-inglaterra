@@ -20,7 +20,8 @@
     "catalog:import": "tsx scripts/import-catalog.ts",
     "test:catalog-editor": "tsx scripts/test-catalog-editor.ts",
     "test:catalog-manual": "tsx scripts/test-catalog-manual.ts",
-    "test:catalog-images": "tsx scripts/test-catalog-images.ts"
+    "test:catalog-images": "tsx scripts/test-catalog-images.ts",
+    "test:catalog-publication": "tsx scripts/test-catalog-publication.ts"
   },
   "dependencies": {
     "@vercel/blob": "2.8.0",

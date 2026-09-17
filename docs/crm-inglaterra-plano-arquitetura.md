@@ -16,7 +16,7 @@ Criar um sistema central, independente dos sites, para gerenciar o catálogo imo
 |**Catálogo**|Cadastro/edição de imóveis, lançamentos e condomínios, com galeria de imagens|
 |**Importação XML**|Sincronização de imóveis a partir de XML de sistemas fornecedores, por adaptadores|
 |**Curadoria**|Definir quais imóveis aparecem em qual site (filtro automático + override manual)|
-|**Usuários**|Login, papéis (`admin` / `cadastro`), convites|
+|**Usuários**|Login, papéis (`admin` / `cadastro` / `corretor`), convites|
 |**Configurações de contato**|E-mails que recebem leads, números de WhatsApp por unidade/contexto|
 |**Dashboard**|Métricas de tráfego e comportamento agregadas dos sites|
 |**API de leitura**|Endpoint público, somente leitura, consumido pelos sites|
@@ -110,7 +110,7 @@ bairros
 ### Operacional
 
 ```
-usuarios            id, email, role ('admin'|'cadastro'), unidade\_escopo, ativo
+usuarios            id, email, role ('admin'|'cadastro'|'corretor'), unidade\_escopo, ativo
 codigos\_login       email, code\_hash, expires\_at, used\_at
 configuracoes\_contato
   id, unidade, contexto ('geral'|'bts'|'lancamento'|'imovel')
@@ -139,12 +139,13 @@ Reforços recomendados sobre o que já existe:
 
 ### Autorização
 
-Dois papéis, conforme definido:
+Três papéis, conforme decisão confirmada em 17/09/2026:
 
 |Papel|Pode|
 |-|-|
 |`admin`|Tudo: catálogo, usuários, configurações de contato, dashboard|
-|`cadastro`|Somente cadastrar/editar imóveis, lançamentos e condomínios|
+|`cadastro`|Cadastrar, editar e publicar imóveis, lançamentos e condomínios; sem gestão de usuários/configurações|
+|`corretor`|Cadastrar e editar imóveis, lançamentos e condomínios; não publicar nem gerir usuários/configurações|
 
 **Verificação no servidor, sempre.** Esconder um botão no front-end não é controle de acesso — cada rota e cada ação precisa validar o papel do lado do servidor, independentemente do que a interface mostra.
 

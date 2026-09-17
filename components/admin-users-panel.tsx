@@ -80,6 +80,7 @@ function InviteForm() {
           className="mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-950 outline-none transition focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100"
         >
           <option value="cadastro">Cadastro</option>
+          <option value="corretor">Corretor</option>
           <option value="admin">Admin</option>
         </select>
       </div>
@@ -113,6 +114,7 @@ function RoleForm({ user, disabled }: { user: AdminUserListItem; disabled: boole
         className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-950 outline-none transition focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100"
       >
         <option value="cadastro">Cadastro</option>
+        <option value="corretor">Corretor</option>
         <option value="admin">Admin</option>
       </select>
       <SubmitButton label="Salvar" pendingLabel="Salvando..." pending={pending} disabled={disabled} />

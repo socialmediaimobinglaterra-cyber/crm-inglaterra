@@ -4,12 +4,13 @@ import { getActiveUserByEmail } from '@/lib/queries/auth';
 import { uploadCatalogImage, cleanupCatalogImages } from '@/lib/catalog/image-service';
 import { maxImageBytes } from '@/lib/catalog/image-validation';
 import { imageStorageConfigured } from '@/lib/catalog/image-storage';
+import { canEditCatalog } from '@/lib/auth/roles';
 
 export async function stageCatalogImage(form:FormData):Promise<{ok:boolean;message:string;id?:string}> {
   try {
     const session=await getSessionFromCookie();
     const user=session ? await getActiveUserByEmail(session.email) : null;
-    if(!user || !['admin','cadastro'].includes(user.role)) throw new Error('FORBIDDEN');
+    if(!user || !canEditCatalog(user.role)) throw new Error('FORBIDDEN');
     const propertyId=form.get('propertyId'); const file=form.get('image');
     if(typeof propertyId!=='string' || !(file instanceof File) || !file.size || file.size>maxImageBytes || !imageStorageConfigured()) throw new Error('INVALID_IMAGE');
     await cleanupCatalogImages(user.email);

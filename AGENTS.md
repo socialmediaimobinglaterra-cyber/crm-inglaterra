@@ -60,7 +60,8 @@ Se `.vercel/project.json` não existir, **não rode `vercel link` para criá-lo*
 |Papel|Permissões|
 |-|-|
 |`admin`|Tudo: catálogo, usuários, configurações de contato, dashboard|
-|`cadastro`|Somente cadastrar/editar imóveis, lançamentos e condomínios|
+|`cadastro`|Cadastrar, editar e publicar imóveis, lançamentos e condomínios; sem gestão de usuários/configurações|
+|`corretor`|Cadastrar e editar imóveis, lançamentos e condomínios; não publicar nem gerir usuários/configurações|
 
 Autenticação por **magic code** (código de 6 dígitos por e-mail, sem senha). Códigos guardados como hash, expiração de 10 minutos, rate limiting por e-mail e por IP.
 

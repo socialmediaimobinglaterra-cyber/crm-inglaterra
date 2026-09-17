@@ -3,10 +3,11 @@ import { sql } from "@/lib/db";
 import { sendUserInviteEmail } from "@/lib/email/resend";
 import { recordAuthAuditEventBestEffort } from "@/lib/queries/audit";
 import type postgres from "postgres";
+import { isUserRole, type UserRole } from "@/lib/auth/roles";
 
 export const genericInviteRejectionMessage = "Convite invalido ou expirado.";
 
-export type UserInviteRole = "admin" | "cadastro";
+export type UserInviteRole = UserRole;
 
 type UserInvite = {
   id: string;
@@ -90,7 +91,7 @@ function assertAllowedDomain(email: string) {
 }
 
 function assertAllowedRole(role: UserInviteRole) {
-  if (role !== "admin" && role !== "cadastro") {
+  if (!isUserRole(role)) {
     throw new Error("INVALID_INVITE_ROLE");
   }
 }

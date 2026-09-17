@@ -2,8 +2,9 @@ import type { Usuario } from "@/lib/queries/auth";
 import { recordAuthAuditEventInTransaction } from "@/lib/queries/audit";
 import { sql } from "@/lib/db";
 import type postgres from "postgres";
+import { isUserRole, type UserRole } from "@/lib/auth/roles";
 
-export type UsuarioRole = "admin" | "cadastro";
+export type UsuarioRole = UserRole;
 
 export type AdminUserListItem = Usuario & {
   pending_invites: number;
@@ -43,7 +44,7 @@ export function normalizeUserEmail(value: string) {
 }
 
 export function isUsuarioRole(value: string): value is UsuarioRole {
-  return value === "admin" || value === "cadastro";
+  return isUserRole(value);
 }
 
 function assertAllowedDomain(email: string) {

@@ -6,7 +6,7 @@ import { galleryDraftSchema, type GalleryDraft } from '@/lib/catalog/gallery-dra
 type Tx = postgres.TransactionSql<Record<string, never>>;
 export type GalleryImage = { id:string; position:number; is_primary:boolean; width:number; height:number };
 async function authorize(tx:Tx,email:string) {
-  const rows=await tx`select id from usuarios where email=${email.trim().toLowerCase()} and ativo and role in ('admin','cadastro') for share`;
+  const rows=await tx`select id from usuarios where email=${email.trim().toLowerCase()} and ativo and role in ('admin','cadastro','corretor') for share`;
   if (!rows.length) throw new Error('CATALOG_FORBIDDEN');
 }
 async function lockProperty(tx:Tx,email:string,id:string) {
