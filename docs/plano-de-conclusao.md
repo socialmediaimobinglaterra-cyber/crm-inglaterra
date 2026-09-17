@@ -112,6 +112,15 @@ Implementacao: migracao `008_catalog_codes.sql` aplicada no Neon, sem editar 001
 - Usuario autorizou commit/push do conjunto acumulado do catalogo e correcoes relacionadas para testar o Blob no ambiente Vercel. Deploy exclusivamente pelo webhook GitHub; sem CLI ou alteracao de configuracoes.
 - Esta autorizacao nao publica imoveis no site Premium nem autoriza acesso ao repositorio do site. Migracao das fotos XML, curadoria/publicacao e integracao publica continuam pendentes.
 
+## Edicao unificada de fotos - 2026-09-17
+
+- Usuario confirmou upload real e miniatura em producao no fluxo anterior. Solicitou substituir envio imediato por selecao multipla com previa e um unico Salvar alteracoes.
+- No editor de imovel existente, Escolher fotos abre o seletor; miniaturas locais, ordem, principal e remocoes ficam em rascunho. Nenhum envio ocorre ao selecionar. Ao salvar, cada arquivo e enviado separadamente (4 MB) e depois dados e galeria sao confirmados na mesma transacao, com verificacao das duas versoes. Falhas preservam campos e selecao na tela; arquivos ja enviados sao reutilizados na tentativa seguinte por ate 45 minutos.
+- Migracao 010 aplicada no Neon: estado staged para upload completo ainda nao confirmado; migracoes anteriores inalteradas. Proxy serve somente ready. Rascunhos abandonados entram na limpeza limitada apos uma hora; ausencia de trafego continua podendo adiar a limpeza.
+- Testes de imagens e editor no Neon aprovados: rollback conjunto, concorrencia, ordem/principal, staged invisivel e limpeza. Blob simulado e fixtures removidas. Build e diff check aprovados.
+- Navegador local: botao abriu selecao multipla, duas imagens sinteticas apareceram como Nao salva e habilitaram Salvar alteracoes; principal alterada somente na previa; imagens sinteticas removidas sem salvar. Sem alteracao do imovel real. Imagem existente do Blob nao carrega localmente sem credencial, como esperado.
+- Este ajuste cobre o editor de imovel existente. Novo imovel continua sendo cadastrado antes de abrir sua galeria. Fluxo unificado ainda nao publicado nem validado com Blob real; sem commit/push/deploy nesta etapa.
+
 ## Registro da atualizacao de seguranca - 2026-09-17
 
 - Next atualizado de 15.5.23 para 15.5.24, mantendo a stack. Versao exata no manifesto.

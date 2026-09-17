@@ -1,12 +1,55 @@
 "use client";
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { updateCatalog } from "@/app/catalog/[id]/actions";
 import { createCatalog } from "@/app/catalog/new/actions";
 import { propertyTypes } from "@/lib/catalog/property-types";
 import type { CatalogEdit } from "@/lib/catalog/editor";
+import { CatalogGallery, type DraftPhoto } from './catalog-gallery';
+import type { GalleryImage } from '@/lib/queries/catalog-images';
+import { stageCatalogImage } from '@/app/catalog/[id]/image-actions';
+import { readCatalogEdit } from '@/lib/catalog/editor';
 
-export function CatalogEditor({ id, version, values, mode = "edit" }: { id: string; version: string; values: CatalogEdit; mode?: "create" | "edit" }) {
-  const [state, action, pending] = useActionState(mode === "create" ? createCatalog : updateCatalog, { ok: false, message: "" });
+export function CatalogEditor({ id, version, values, mode = "edit", gallery }: { id: string; version: string; values: CatalogEdit; mode?: "create" | "edit"; gallery?: {images:GalleryImage[];version:string;externalCount:number;uploadAvailable:boolean} }) {
+  const [photos,setPhotos]=useState<DraftPhoto[]>(()=>gallery?.images.map(image=>({key:image.id,id:image.id,preview:`/api/blob-image/${image.id}?size=thumb`,primary:image.is_primary}))??[]);
+  const uploaded=useRef(new Map<string,{id:string;at:number}>());
+  const urls=useRef(new Set<string>());
+  const [progress,setProgress]=useState('');
+  useEffect(()=>{
+    const next=new Set(photos.filter(photo=>photo.file).map(photo=>photo.preview));
+    for(const url of urls.current) if(!next.has(url)) URL.revokeObjectURL(url);
+    urls.current=next;
+  },[photos]);
+  useEffect(()=>()=>{for(const url of urls.current) URL.revokeObjectURL(url);},[]);
+  const [state, action, pending] = useActionState(async(previous:{ok:boolean;message:string},form:FormData)=>{
+    if(mode==='create') return createCatalog(previous,form);
+    try {
+      readCatalogEdit(form);
+      if(gallery&&!gallery.uploadAvailable&&photos.some(photo=>photo.file)) return {ok:false,message:'As fotos estão apenas na prévia. O armazenamento não está conectado neste ambiente; nenhuma alteração foi salva.'};
+      const ids:string[]=[];
+      for(const [index,photo] of photos.entries()) {
+        if(photo.id) {ids.push(photo.id);continue;}
+        let cached=uploaded.current.get(photo.key);
+        if(cached&&Date.now()-cached.at>45*60*1000) cached=undefined;
+        if(!cached) {
+          setProgress(`Enviando foto ${index+1} de ${photos.length}...`);
+          const data=new FormData();data.set('propertyId',id);data.set('image',photo.file!);
+          const result=await stageCatalogImage(data);
+          if(!result.ok||!result.id) return {ok:false,message:result.message};
+          cached={id:result.id,at:Date.now()};uploaded.current.set(photo.key,cached);
+        }
+        ids.push(cached.id);
+      }
+      if(gallery) form.set('gallery',JSON.stringify({version:gallery.version,ids,primaryId:ids[photos.findIndex(photo=>photo.primary)]??null}));
+      setProgress('Salvando alterações...');
+      const result=await updateCatalog(previous,form);
+      if(result.ok) {
+        setPhotos(photos.map((photo,index)=>({key:ids[index],id:ids[index],preview:`/api/blob-image/${ids[index]}?size=thumb`,primary:photo.primary})));
+        uploaded.current.clear();
+      }
+      return result;
+    } catch {return {ok:false,message:'Não foi possível concluir. Confira os campos e a conexão. As alterações foram mantidas nesta tela.'};}
+    finally {setProgress('');}
+  }, { ok: false, message: "" });
   const [dirty, setDirty] = useState(false);
   useEffect(() => { if(state.ok) setDirty(false); }, [state]);
   useEffect(() => {
@@ -44,7 +87,8 @@ export function CatalogEditor({ id, version, values, mode = "edit" }: { id: stri
       <section className="border-b border-slate-200 py-6"><h2 className="mb-4 text-lg font-semibold">Valores</h2><div className="grid gap-4 sm:grid-cols-2">{([['sale','Venda'],['rent','Locação'],['condominium','Condomínio'],['iptu','IPTU']] as const).map(([key,label]) => <label key={key} className="text-sm">{label} (R$)<input name={key} inputMode="decimal" maxLength={40} defaultValue={values.prices[key] ?? ""} className={fieldClass} /></label>)}</div></section>
       <section className="border-b border-slate-200 py-6"><h2 className="mb-4 text-lg font-semibold">Áreas</h2><div className="grid gap-4 sm:grid-cols-4"><label className="text-sm">Unidade<select name="unit" defaultValue={values.areas.unit ?? ""} className={fieldClass}><option value="">Não informada</option><option value="m2">m²</option><option value="ha">ha</option></select></label>{([['total','Total'],['usable','Útil'],['private','Privativa']] as const).map(([key,label]) => <label key={key} className="text-sm">{label}<input name={key} inputMode="decimal" maxLength={40} defaultValue={values.areas[key] ?? ""} className={fieldClass} /></label>)}</div></section>
       <section className="py-6"><h2 className="mb-4 text-lg font-semibold">Ambientes</h2><div className="grid grid-cols-2 gap-4 sm:grid-cols-5">{([['bedrooms','Dormitórios'],['suites','Suítes'],['bathrooms','Banheiros'],['livingRooms','Salas'],['parkingSpaces','Vagas']] as const).map(([key,label]) => <label key={key} className="text-sm">{label}<input name={key} type="number" min={0} max={999999} step={1} defaultValue={values.rooms[key] ?? ""} className={fieldClass} /></label>)}</div></section>
-      <div className="flex flex-wrap items-center gap-4 border-t border-slate-200 py-5"><button disabled={!dirty || pending} className="rounded bg-emerald-800 px-5 py-3 font-semibold text-white disabled:opacity-50">{pending ? "Salvando..." : mode === 'create' ? 'Cadastrar imóvel' : "Salvar alterações"}</button><p role="status" className={state.ok ? "text-emerald-800" : "text-red-700"}>{state.message}</p></div>
+      {gallery&&<CatalogGallery photos={photos} onChange={next=>{setPhotos(next);setDirty(true);}} pending={pending} externalCount={gallery.externalCount} uploadAvailable={gallery.uploadAvailable}/>}
+      <div className="sticky bottom-0 flex flex-wrap items-center gap-4 border-t border-slate-200 bg-white py-5"><button disabled={!dirty || pending} className="rounded bg-emerald-800 px-5 py-3 font-semibold text-white disabled:opacity-50">{pending ? "Salvando..." : mode === 'create' ? 'Cadastrar imóvel' : "Salvar alterações"}</button><p role="status" className={state.ok ? "text-emerald-800" : "text-red-700"}>{pending?progress:state.message}</p></div>
     </fieldset>
   </form>;
 }

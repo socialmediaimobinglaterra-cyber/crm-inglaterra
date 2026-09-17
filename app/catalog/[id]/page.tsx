@@ -2,7 +2,6 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { CrmNavigation } from "@/components/crm-navigation";
 import { CatalogEditor } from "@/components/catalog-editor";
-import { CatalogGallery } from "@/components/catalog-gallery";
 import { getCatalogGallery } from "@/lib/queries/catalog-images";
 import { imageStorageConfigured } from "@/lib/catalog/image-storage";
 import { requireCatalogUser } from "@/lib/auth/catalog";
@@ -19,7 +18,6 @@ export default async function CatalogEditPage({ params }: { params: Promise<{ id
   const gallery = await getCatalogGallery(user.email, id);
   return <main className="mx-auto max-w-7xl px-4 pb-10 sm:px-8"><CrmNavigation role={user.role} />
     <header className="pt-6"><Link className="text-sm underline" href="/catalog">Voltar aos imóveis</Link><h1 className="mt-4 text-2xl font-semibold">Imóvel {item.codigo}</h1></header>
-    <CatalogEditor id={id} version={item.version} values={item.values} />
-    <CatalogGallery propertyId={id} {...gallery} uploadAvailable={imageStorageConfigured()} />
+    <CatalogEditor id={id} version={item.version} values={item.values} gallery={{...gallery,uploadAvailable:imageStorageConfigured()}} />
   </main>;
 }

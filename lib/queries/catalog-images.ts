@@ -1,6 +1,7 @@
 import type postgres from 'postgres';
 import { sql } from '@/lib/db';
 import { catalogIdSchema, catalogVersionSchema } from '@/lib/catalog/editor';
+import { galleryDraftSchema, type GalleryDraft } from '@/lib/catalog/gallery-draft';
 
 type Tx = postgres.TransactionSql<Record<string, never>>;
 export type GalleryImage = { id:string; position:number; is_primary:boolean; width:number; height:number };
@@ -48,6 +49,34 @@ export async function completeImageUpload(email:string,propertyId:string,id:stri
     if (!rows.length) throw new Error('IMAGE_UPLOAD_EXPIRED');
   });
 }
+export async function stageImageUpload(email:string,propertyId:string,id:string) {
+  catalogIdSchema.parse(id);
+  await sql.begin(async tx => {
+    await lockProperty(tx,email,propertyId);
+    const rows = await tx`update catalog_images set status='staged' where id=${id} and imovel_id=${propertyId} and status='pending' returning id`;
+    if (!rows.length) throw new Error('IMAGE_UPLOAD_EXPIRED');
+  });
+}
+
+// The caller holds the authorized property-save transaction and property lock.
+export async function saveGalleryDraft(tx:Tx,propertyId:string,input:GalleryDraft) {
+  const draft=galleryDraftSchema.parse(input);
+  const current=await gallery(tx,propertyId);
+  if(current.version!==draft.version) throw new Error('GALLERY_CONFLICT');
+  const rows=await tx<{id:string;status:string}[]>`select id,status from catalog_images where imovel_id=${propertyId} order by id for update`;
+  for(const id of draft.ids) {
+    const row=rows.find(row=>row.id===id);
+    if(!row || !['ready','staged'].includes(row.status)) throw new Error('IMAGE_UPLOAD_EXPIRED');
+  }
+  await tx`update catalog_images set is_primary=false where imovel_id=${propertyId} and is_primary`;
+  for(const row of current.images) {
+    if(!draft.ids.includes(row.id)) await tx`update catalog_images set status='deleting',position=null,cleanup_at=null where id=${row.id}`;
+  }
+  for(const [position,id] of draft.ids.entries()) {
+    await tx`update catalog_images set status='ready',position=${position},is_primary=${id===draft.primaryId} where id=${id} and imovel_id=${propertyId}`;
+  }
+}
+
 export async function failImageUpload(id:string) {
   catalogIdSchema.parse(id);
   const rows=await sql`update catalog_images set status='deleting',cleanup_at=null where id=${id} and status='pending' returning id`;
@@ -62,7 +91,7 @@ export async function claimImageCleanup(email:string) {
     await authorize(tx,email);
     return tx<{id:string}[]>`with candidates as (
       select id from catalog_images where
-        (status='deleting' or (status='pending' and created_at<clock_timestamp()-interval '1 hour'))
+        (status='deleting' or (status in ('pending','staged') and created_at<clock_timestamp()-interval '1 hour'))
         and (cleanup_at is null or cleanup_at<clock_timestamp()-interval '5 minutes')
       order by created_at limit 5 for update skip locked
     ) update catalog_images i set status='deleting',cleanup_at=clock_timestamp()

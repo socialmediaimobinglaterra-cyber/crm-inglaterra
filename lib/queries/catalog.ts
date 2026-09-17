@@ -4,6 +4,8 @@ import { normalizeCatalogItem } from "@/lib/catalog/schemas";
 import { propertyTypes } from "@/lib/catalog/property-types";
 import { sql } from "@/lib/db";
 import { catalogEditSchema, catalogFiltersSchema, catalogIdSchema, catalogVersionSchema, type CatalogEdit } from "@/lib/catalog/editor";
+import { saveGalleryDraft } from './catalog-images';
+import type { GalleryDraft } from '@/lib/catalog/gallery-draft';
 
 type Tx = postgres.TransactionSql<Record<string, never>>;
 async function authorize(tx: Tx, email: string) {
@@ -61,7 +63,7 @@ export async function getCatalogEditor(email: string, id: string) {
   });
 }
 
-export async function saveCatalogEdit(email: string, id: string, version: string, input: CatalogEdit) {
+export async function saveCatalogEdit(email: string, id: string, version: string, input: CatalogEdit, galleryDraft?: GalleryDraft) {
   catalogIdSchema.parse(id);
   catalogVersionSchema.parse(version);
   const values = catalogEditSchema.parse(input);
@@ -74,6 +76,7 @@ export async function saveCatalogEdit(email: string, id: string, version: string
       updated_at = clock_timestamp()
       where id = ${id} and md5(curadoria::text || curadoria_privada::text || source_hash) = ${version} returning id`;
     if (!result.length) throw new Error("CATALOG_CONFLICT");
+    if (galleryDraft) await saveGalleryDraft(tx,id,galleryDraft);
   });
 }
 

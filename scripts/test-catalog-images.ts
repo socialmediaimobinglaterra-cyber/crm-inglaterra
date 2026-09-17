@@ -6,6 +6,9 @@ import { prepareCatalogImage, maxImageBytes } from '@/lib/catalog/image-validati
 import { imagePath, type ImageStorage } from '@/lib/catalog/image-storage';
 import { uploadCatalogImage, cleanupCatalogImages } from '@/lib/catalog/image-service';
 import { getCatalogGallery, mutateGallery, canReadCatalogImage, beginImageUpload, failImageUpload } from '@/lib/queries/catalog-images';
+import { getCatalogEditor, saveCatalogEdit } from '@/lib/queries/catalog';
+import { catalogEditSchema } from '@/lib/catalog/editor';
+import { galleryDraftSchema } from '@/lib/catalog/gallery-draft';
 
 async function main() {
   const png=await sharp({create:{width:80,height:60,channels:3,background:{r:40,g:120,b:80}}}).withMetadata({exif:{IFD0:{Copyright:'fixture-only'}}}).png().toBuffer();
@@ -57,6 +60,30 @@ async function main() {
     await cleanupCatalogImages(email,storage);
     assert.equal((await sql`select id from catalog_images where id=${pending}`).length,0);
     assert.equal((await getCatalogGallery(email,property)).images.length,1);
+    const values=catalogEditSchema.parse({title:'Teste integrado',description:null,prices:{sale:'10',rent:null,condominium:null,iptu:null},areas:{unit:null,total:null,usable:null,private:null},rooms:{bedrooms:0,suites:0,bathrooms:0,livingRooms:0,parkingSpaces:0}});
+    await sql`update imoveis set dados_origem=${sql.json({...values,media:[]})} where id=${property}`;
+    const staged=await uploadCatalogImage(email,property,png,storage,true);
+    const staged2=await uploadCatalogImage(email,property,png,storage,true);
+    assert.equal(await canReadCatalogImage(email,staged),false);
+    const before=await getCatalogEditor(email,property);assert(before);
+    gallery=await getCatalogGallery(email,property);
+    const draft={version:gallery.version,ids:[staged2,staged,...gallery.images.map(image=>image.id)],primaryId:staged2};
+    assert.equal(galleryDraftSchema.safeParse({...draft,ids:[staged,staged]}).success,false);
+    await assert.rejects(()=>saveCatalogEdit(email,property,before.version,{...values,title:'Nao persistir'},{...draft,ids:[pending],primaryId:pending}));
+    assert.equal((await getCatalogEditor(email,property))?.values.title,values.title);
+    const saves=await Promise.allSettled([1,2].map(()=>saveCatalogEdit(email,property,before.version,{...values,title:'Salvo junto'},draft)));
+    assert.equal(saves.filter(result=>result.status==='fulfilled').length,1);
+    gallery=await getCatalogGallery(email,property);
+    assert.deepEqual(gallery.images.map(image=>image.id),draft.ids);
+    assert.equal(gallery.images[0].is_primary,true);
+    assert.equal((await getCatalogEditor(email,property))?.values.title,'Salvo junto');
+    assert.equal(await canReadCatalogImage(email,staged),true);
+    const abandoned=await uploadCatalogImage(email,property,png,storage,true);
+    await sql`update catalog_images set created_at=clock_timestamp()-interval '2 hours' where id=${abandoned}`;
+    await cleanupCatalogImages(email,storage);
+    assert.equal((await sql`select id from catalog_images where id=${abandoned}`).length,0);
+    assert.equal((await getCatalogGallery(email,property)).images.length,3);
+    console.log('PASS: staged images hidden, atomic property/gallery rollback, concurrent save, multi-image order/primary and abandoned staging cleanup');
     await sql`update usuarios set ativo=false where email=${email}`;
     await assert.rejects(()=>getCatalogGallery(email,property),/CATALOG_FORBIDDEN/);
     await assert.rejects(()=>canReadCatalogImage(email,first),/CATALOG_FORBIDDEN/);
