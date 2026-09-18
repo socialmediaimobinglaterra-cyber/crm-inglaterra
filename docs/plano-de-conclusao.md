@@ -98,6 +98,34 @@ Proxima acao: curadoria/publicacao por unidade. Catalogo e galeria publicados no
 - Sem commit/push/deploy. Proximo passo: validar a interface do lote e publicar somente com autorizacao; depois executar um lote pequeno aprovado antes de ampliar volume. O site Premium e suas integracoes permanecem inalterados.
 - Usuario autorizou commit/push em 2026-09-18. Codigo sem mudanca desde os testes/build aprovados; verificacao final do diff, sem repetir a bateria. O deploy nao executa transferencias; validacao real do lote continua pendente.
 
+## Aceite dos lotes em producao - 2026-09-18
+
+- Versao publicada no commit `a840b0a`. Usuario confirmou a abertura da pagina e preparou um lote de 3 fotos para AP0104.
+- Screenshot confirmou pausa apos 1/3 transferencias e 1/9 tentativas, com duas fotos pendentes. Usuario confirmou que atualizar a pagina preservou o progresso sem iniciar transferencia automaticamente.
+- Retomada concluida: screenshot mostrou 3/3 transferidas, 3/9 tentativas e Lote concluido, sem repetir a primeira transferencia. Volumes exibidos: 0,12 MB de downloads completos e 0,13 MB de imagens/miniaturas gravadas; valores arredondados, nao estimativa de cobranca.
+- Usuario confirmou as tres novas fotos na galeria, preservando as anteriores e a principal. Fluxo real de lote, pausa, persistencia e retomada aprovado em producao, sem falha relatada.
+- Registro documental somente; sem nova transferencia, consulta ao banco, teste/build, commit ou push. Migracao global e custos em escala nao foram validados por este lote.
+
+## Ampliacao controlada e proxima entrega - 2026-09-18
+
+- Usuario decidiu manter a Vercel. Captura confirmou upgrade para Pro; usuario confirmou salvar alerta de US$ 5 de consumo adicional, com pausa automatica desligada. Alerta nao constitui teto de cobranca. Nenhuma configuracao alterada pelo agente.
+- Novo lote de AP0104 concluido em producao: 10/10 fotos, 10 tentativas, 0,87 MB de downloads completos e 0,92 MB de imagens/miniaturas gravadas, conforme captura. Usuario confirmou fotos visiveis e principal preservada. Nao repetir os testes anteriores sem mudanca relevante.
+- Estes volumes pertencem somente ao lote, nao representam media confiavel de todo o catalogo nem custo total de operacao. Migracao global permanece sem autorizacao.
+- Proxima entrega: API somente leitura para imoveis por unidade e entrega segura de imagens publicadas, reutilizando o contrato normalizado. O DTO existente nao equivale a uma API implementada; o proxy atual de imagens exige sessao administrativa.
+- Antes de definir o contrato de integracao, solicitar acesso somente leitura ao repositorio do Premium para levantar campos, filtros, paginacao, URLs e consumo de imagens atuais. O acesso depende de autorizacao especifica e identificacao do repositorio pelo usuario. Nao alterar o site, trocar sua fonte de dados ou remover o legado nesta etapa.
+- A implementacao devera preservar selecao explicita de campos publicos, publicacao/disponibilidade por unidade, validacao de entradas, limites de consulta, rate limiting, CORS restrito e politica de cache compativel com retirada de publicacao. Origens permitidas e requisitos de compatibilidade ainda precisam ser confirmados; nao inventar configuracoes.
+- Gestao de lancamentos/condominios e integracao final continuam pendentes; esta proxima entrega nao encerra todo o escopo do catalogo. Registro documental apenas, sem banco, transferencia, build, commit, push ou deploy.
+
+## API inicial de imoveis - 2026-09-18
+
+- Usuario autorizou consulta somente leitura ao repositorio Premium. Codigo `00445b8` analisado sem clonar, executar ou modificar o site; nenhum acesso ao banco do site. Filtros, paginas, slugs e dependencias editoriais identificados.
+- API GET de listagem/detalhe/filtros por unidade e proxy publico de fotos ready implementados no CRM. Privacidade por allowlist, curadoria efetiva, publicacao real por unidade, parametros estritos, precos decimais, limites e erros genericos. Proxy administrativo preservado.
+- Migracao 014 aplicada no Neon com autorizacao explicita. Contadores atomicos por identificador HMAC/IP, separados de login; limite por minuto de 120 JSON/600 imagens. Fixtures exclusivas removidas ao fim do teste autorizado; nenhum imovel real ou Blob alterado.
+- Testes `catalog-api --db`, regressao `catalog-contract`, build e smoke HTTP de metodos/CORS aprovados. Banco real, Blob simulado. Sem repetir testes anteriores de galeria. Servidor temporario de smoke encerrado.
+- Detalhes e limites em `docs/catalog-public-api.md`. Cache publico permanece pendente: no-store inicial evita servir retirada de publicacao por cache antigo, mas exige validacao de custo/desempenho antes da escala. CORS somente para origem Premium Vercel observada; confirmar dominios customizados antes da integracao.
+- API ainda nao publicada nem validada com GET/Blob publico real em producao. Sem commit/push/deploy; nenhuma alteracao no Premium. Proximos criterios: revisao final, publicacao somente com autorizacao, aceite real, politica de cache e transicao com paridade/URLs preservadas. Lancamentos/condominios e demais dependencias do site nao estao concluidos.
+- Usuario autorizou commit, push e deploy desta API. Publicacao exclusivamente por push em main e webhook da Vercel, sem CLI. Testes/build anteriores preservados, sem mudanca posterior de codigo; verificacao publica sera feita apos o deploy. Esta autorizacao nao troca a fonte do site nem inicia migracao de fotos.
+
 ## Implementacao do papel corretor - 2026-09-17
 
 - Novo papel disponivel no codigo de convites, gestao de usuarios, sessao e autorizacao de catalogo/fotos. Administracao de contas/configuracoes continua exclusiva de admin ativo confirmado no banco. Nenhuma conta real criada ou alterada.
