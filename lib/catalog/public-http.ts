@@ -4,6 +4,7 @@ import { parsePublicQuery, publicCodeSchema } from './public-api';
 import { apiIdentifier, consumeApiLimit } from '@/lib/queries/catalog-api-rate-limit';
 import { listPublicProperties, getPublicProperty, getPublicFilterOptions, canReadPublicImage } from '@/lib/queries/catalog-public';
 import { readPrivateImage } from './image-storage';
+import { createPublicDataCache } from './public-cache';
 
 const allowedOrigins = new Set(['https://inglaterrapremium.vercel.app']);
 const baseHeaders = {
@@ -20,7 +21,12 @@ type Dependencies = Omit<typeof productionDependencies, 'image'> & {
 };
 
 // Dependencies are bound on the server; route handlers accept only Next's normal arguments.
-export function createPublicHandlers(deps: Dependencies = productionDependencies) {
+export function createPublicHandlers(deps: Dependencies = productionDependencies, now?: () => number) {
+  const cached = createPublicDataCache(now);
+  function json(body: string, headers: Headers) {
+    headers.set('Content-Type', 'application/json');
+    return new Response(body, { headers });
+  }
   async function guard(request: Request, image: boolean) {
     const headers = new Headers(baseHeaders);
     const origin = request.headers.get('origin');
@@ -53,15 +59,19 @@ export function createPublicHandlers(deps: Dependencies = productionDependencies
         let filters;
         try { filters=parsePublicQuery(url.searchParams); }
         catch { return Response.json({error:'Parametros invalidos.'},{status:400,headers}); }
-        return Response.json(await deps.list(unit.data,filters),{headers});
+        const body = await cached(JSON.stringify([unit.data,'list',filters]), () => deps.list(unit.data,filters));
+        if (body === null) throw new Error('INVALID_PUBLIC_LIST');
+        return json(body,headers);
       }
       if (url.search) return Response.json({error:'Parametros invalidos.'},{status:400,headers});
       if (path.length === 1 && path[0] === 'filters') {
-        return Response.json({items:await deps.filters(unit.data)},{headers});
+        const body = await cached(JSON.stringify([unit.data,'filters']), async () => ({items:await deps.filters(unit.data)}));
+        if (body === null) throw new Error('INVALID_PUBLIC_FILTERS');
+        return json(body,headers);
       }
       if (path.length === 2 && path[0] === 'properties' && publicCodeSchema.safeParse(path[1]).success) {
-        const item = await deps.detail(unit.data,path[1]);
-        if (item) return Response.json(item,{headers});
+        const body = await cached(JSON.stringify([unit.data,'detail',path[1]]), () => deps.detail(unit.data,path[1]));
+        if (body !== null) return json(body,headers);
       }
       return Response.json({error:'Recurso nao encontrado.'},{status:404,headers});
     } catch {

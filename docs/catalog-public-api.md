@@ -1,6 +1,6 @@
 # API publica inicial de imoveis
 
-Implementacao local de 2026-09-18. Nao publicada; nao altera o site Premium.
+Implementacao de 2026-09-18, publicada no commit `b516da7` por push autorizado e deploy automatico. Nao altera o site Premium.
 
 ## Escopo e rotas
 
@@ -42,7 +42,7 @@ Identificador e HMAC com contexto catalog-api:v1, sem persistir IP puro. Em Verc
 
 CORS permite somente a origem observada do site `https://inglaterrapremium.vercel.app`, sem wildcard, cookies ou credenciais. Mesma origem e consumidores sem Origin podem ler; CORS nao e autenticacao nem impede scraping. Dominios customizados/da matriz nao foram presumidos: confirmar antes de habilitar. Preflight nao e necessario para GET simples; nao usar headers personalizados na integracao inicial.
 
-**Cache publico ainda pendente:** respostas usam no-store, inclusive CDN, erros e imagens. Decisao conservadora nesta entrega, ate aprovar janela de retirada de publicacao e invalidacao. Isso diverge temporariamente do objetivo de cache agressivo da arquitetura, aumenta consultas/trafego e impede considerar a fase completa para escala. A proxima requisicao apos retirada de publicacao deve ser negada; uma requisicao ja em andamento pode concluir. Conteudo ja baixado por terceiros nao pode ser revogado.
+**Politica aprovada pelo usuario e implementada localmente:** dados JSON podem permanecer desatualizados por ate 60 segundos. Cache interno por instancia, depois de CORS/metodo/rate limiting, sem cache HTTP/CDN (headers no-store preservados). Fotos verificam publicacao a cada acesso; uma requisicao ja em andamento pode concluir. Conteudo ja baixado por terceiros nao pode ser revogado. O commit de producao `b516da7` ainda nao possui este cache interno.
 
 ## Compatibilidade com o Premium
 
@@ -56,4 +56,20 @@ A API nao reproduz o formato legado nem inventa slugs. Antes da troca, preservar
 - `test:catalog-api --db`: entradas, decimais, projecao recursiva, metodos, CORS, imagens, mensagens, curadoria, unidades, retirada de publicacao, filtros/ha/paginacao e concorrencia do contador aprovados. Fixtures exclusivas removidas e ausencia verificada.
 - Banco real no teste; imagens/stream simulados. Nenhuma foto real transferida ou imovel real alterado.
 - Regressao `test:catalog-contract` e build aprovados. Smoke HTTP do Next em porta temporaria confirmou 405 e 403 antes do banco; servidor temporario encerrado.
-- Pendente: validacao GET publico com Blob real em producao apos publicacao autorizada, cache/CDN e integracao/paridade do Premium. Nao houve commit, push, deploy ou alteracao do site.
+- Deploy do commit `b516da7` verificado por acesso publico: login/API 200, parametros invalidos 400, POST 405 e CORS para a origem permitida.
+- Usuario escolheu CA5278, confirmou 10 fotos na galeria e salvou publicacao Premium. Lote real: 10/10 fotos em 10 tentativas, 1,13 MB baixados e 1,10 MB de imagens/miniaturas gravadas. AP0104 nao foi publicado para este aceite, pois o usuario informou que nao pertence ao Premium.
+- GET publico do CA5278 retornou 200, unidade premium e 10 midias. Verificacao recursiva nao encontrou campos privados estruturados. Uma foto real e sua miniatura retornaram 200/image/webp, com 149.628 e 26.038 bytes respectivamente. Nao houve verificacao automatica de todas as dez imagens nem auditoria semantica dos textos.
+- Consulta do CA5278 pela unidade matriz retornou 404. Resposta Premium manteve no-store. Nenhuma alteracao do imovel foi feita pelo agente nesta verificacao; publicacao foi salva pelo usuario.
+- Pendente: publicar e verificar o cache interno em producao, teste de retirada de publicacao real e integracao/paridade do Premium. Nenhuma nova publicacao ou despublicacao autorizada por este registro.
+
+## Cache de dados - politica aprovada
+
+- Usuario aprovou ate 60 segundos de desatualizacao para listagem, detalhe e filtros publicos, incluindo preco antigo e imovel retirado de publicacao. Implementacao local em `lib/catalog/public-cache.ts`, ligada aos handlers JSON; ainda sem deploy.
+- TTL monotonicamente contado desde o inicio da leitura da fonte, incluindo consulta/serializacao. Leitura que consumir a janela inteira falha com 503 generico. Sem stale-while-revalidate, stale-if-error, renovacao do TTL no hit ou cache de 404/erros.
+- Cache armazena somente JSON publico serializado, com chave por unidade/recurso/codigo ou filtros validados. Headers CORS sao reconstruidos para cada requisicao. Metodos, origem e rate limiting sao verificados antes de qualquer hit.
+- Limites tecnicos por instancia: 100 entradas e 10 MiB de corpos JSON UTF-8 (nao e limite da memoria total do processo). Corpos maiores sao servidos sem armazenamento; remocao por expiracao e ordem de insercao. Leitura concorrente antiga nao substitui uma entrada de janela mais recente. Nao ha coalescencia de misses.
+- Cache em memoria nao distribuido: cold starts e instancias distintas podem consultar novamente o banco. O contador distribuido continua sendo consultado em todos os acessos. Reduz leituras de catalogo, nao custo de todas as Functions/contadores nem trafego de imagens. Cache CDN agressivo continua adiado para nao contornar o rate limiting.
+- Fotos continuam fora do cache: consulta de publicacao/unidade/estado em toda requisicao e headers no-store. Rotas administrativas nao foram alteradas.
+- Testes locais com relogio controlado aprovados: hit, limite exato de 60 segundos, expiracao de lista/detalhe/filtros, unidade/paginacao, CORS novo em hit, bloqueio por metodo/origem/limite, despublicacao com foto negada imediatamente, erros sem cache, leitura lenta, capacidade e concorrencia. Dependencias de banco/Blob simuladas; nenhum registro real alterado. Nao repetido teste Neon porque SQL/schema nao mudaram.
+- O site futuro nao deve somar outro cache e ultrapassar a janela acordada. A janela limita a selecao da resposta no servidor; transporte e copias ja entregues ao cliente nao sao revogaveis.
+- Referencia consultada: https://vercel.com/docs/caching/cache-control-headers . A configuracao efetiva deve ser verificada em producao; um TTL isolado nao comprova a janela de retirada ponta a ponta.

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import { parsePublicQuery, projectPublicItem } from '@/lib/catalog/public-api';
 import { createPublicHandlers } from '@/lib/catalog/public-http';
+import { createPublicDataCache } from '@/lib/catalog/public-cache';
 import { listPublicProperties, getPublicProperty, getPublicFilterOptions, canReadPublicImage } from '@/lib/queries/catalog-public';
 import { consumeApiLimit, apiIdentifier } from '@/lib/queries/catalog-api-rate-limit';
 import { sql } from '@/lib/db';
@@ -72,12 +73,68 @@ async function local() {
   const limited=await handlers.catalog(request(),'premium',['properties']); assert.equal(limited.status,429); assert.equal(limited.headers.get('retry-after'),'60');
   const failed=createPublicHandlers({...deps,limit:async()=>{throw new Error('PRIVATE_SENTINEL');}});
   const failure=await failed.catalog(request(),'premium',['properties']); assert.equal(failure.status,503); noLeak(await failure.json());
+  let clock=0, limits=0, details=0, filterReads=0;
+  allowed=true; visible=true; calls=0;
+  const cachedHandlers=createPublicHandlers({...deps,
+    limit:async()=>{limits++;return allowed;},
+    detail:async()=>{details++;return visible ? item : null;},
+    filters:async()=>{filterReads++;return [];},
+  },()=>clock);
+  const list=()=>cachedHandlers.catalog(request(),'premium',['properties']);
+  const detail=()=>cachedHandlers.catalog(request(),'premium',['properties','AP9999']);
+  const options=()=>cachedHandlers.catalog(request(),'premium',['filters']);
+  await list(); await list(); assert.equal(calls,1); assert.equal(limits,2);
+  const withoutOrigin=await list(); assert.equal(withoutOrigin.headers.get('access-control-allow-origin'),null);
+  const withOrigin=await cachedHandlers.catalog(request('','GET','https://inglaterrapremium.vercel.app'),'premium',['properties']);
+  assert.equal(withOrigin.headers.get('access-control-allow-origin'),'https://inglaterrapremium.vercel.app');
+  for (const header of ['cache-control','cdn-cache-control','vercel-cdn-cache-control']) assert.equal(withOrigin.headers.get(header),'no-store');
+  assert.equal((await cachedHandlers.catalog(request('','GET','https://evil.example'),'premium',['properties'])).status,403);
+  assert.equal((await cachedHandlers.catalog(request('','POST'),'premium',['properties'])).status,405);
+  allowed=false; assert.equal((await list()).status,429); allowed=true;
+  await cachedHandlers.catalog(request('?page=1'),'premium',['properties']); assert.equal(calls,1);
+  await cachedHandlers.catalog(request('?page=2'),'premium',['properties']);
+  await cachedHandlers.catalog(request(),'matriz',['properties']); assert.equal(calls,3);
+  await detail(); await detail(); assert.equal(details,1);
+  await options(); await options(); assert.equal(filterReads,1);
+  const before=reads;
+  assert.equal((await cachedHandlers.image(request(),'premium',imageId)).status,200);
+  visible=false; clock=59_999;
+  assert.equal((await detail()).status,200);
+  assert.equal((await cachedHandlers.image(request(),'premium',imageId)).status,404);
+  assert.equal(reads,before+1);
+  await list(); await options(); assert.equal(calls,3); assert.equal(filterReads,1);
+  clock=60_000;
+  assert.equal((await detail()).status,404); assert.equal(details,2);
+  await list(); await options(); assert.equal(calls,4); assert.equal(filterReads,2);
+  visible=true; assert.equal((await detail()).status,200); assert.equal(details,3);
   process.env.ADMIN_SESSION_SECRET ??= 'synthetic-local-test-secret-not-a-real-credential';
   const old=process.env.VERCEL; process.env.VERCEL='1';
   assert.equal(apiIdentifier(new Headers({'x-forwarded-for':'192.0.2.1'})),apiIdentifier(new Headers({'x-forwarded-for':'192.0.2.2'})));
   assert.notEqual(apiIdentifier(new Headers({'x-vercel-forwarded-for':'192.0.2.1'})),apiIdentifier(new Headers({'x-vercel-forwarded-for':'192.0.2.2'})));
   if(old===undefined) delete process.env.VERCEL; else process.env.VERCEL=old;
   console.log('PASS: strict query, decimal precision, recursive privacy, GET-only, CORS, rate errors, safe image gate and no-store');
+}
+
+async function cacheBoundaries() {
+  let clock=0, calls=0;
+  const cached=createPublicDataCache(()=>clock);
+  const load=async()=>{calls++;return {version:calls};};
+  assert.equal(await cached('key',load),'{"version":1}');
+  clock=60_000;
+  await assert.rejects(cached('key',async()=>{throw new Error('synthetic');}));
+  assert.equal(await cached('key',load),'{"version":2}');
+  await assert.rejects(cached('slow',async()=>{clock+=60_000;return {}; }));
+  assert.equal(await cached('slow',load),'{"version":3}');
+  for(let i=0;i<101;i++) await cached(`entry-${i}`,load);
+  const count=calls; await cached('entry-0',load); assert.equal(calls,count+1);
+  const oversized=async()=>{calls++;return 'x'.repeat(10*1024*1024);};
+  await cached('large',oversized); await cached('large',oversized); assert.equal(calls,count+3);
+  let finish: (value: unknown) => void = () => {throw new Error('not started');};
+  const old=cached('race',()=>new Promise(resolve=>{finish=resolve;}));
+  clock+=1; await cached('race',async()=>({version:'new'}));
+  finish({version:'old'}); await old;
+  assert.equal(await cached('race',load),'{"version":"new"}');
+  console.log('PASS: 60s hard expiry, guards on hits, unit/query isolation, fresh CORS, immediate image gate, no cached errors, bounded memory and concurrent loads');
 }
 
 async function database() {
@@ -131,6 +188,6 @@ async function database() {
   }
 }
 
-local().then(async()=>{if(process.argv.includes('--db')) await database();})
+local().then(cacheBoundaries).then(async()=>{if(process.argv.includes('--db')) await database();})
   .catch(error=>{console.error(error instanceof assert.AssertionError ? error.message : 'CATALOG_API_TEST_FAILED');process.exitCode=1;})
   .finally(async()=>{if(process.argv.includes('--db')) await sql.end();});

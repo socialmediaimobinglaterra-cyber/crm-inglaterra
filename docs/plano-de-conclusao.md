@@ -126,6 +126,15 @@ Proxima acao: curadoria/publicacao por unidade. Catalogo e galeria publicados no
 - API ainda nao publicada nem validada com GET/Blob publico real em producao. Sem commit/push/deploy; nenhuma alteracao no Premium. Proximos criterios: revisao final, publicacao somente com autorizacao, aceite real, politica de cache e transicao com paridade/URLs preservadas. Lancamentos/condominios e demais dependencias do site nao estao concluidos.
 - Usuario autorizou commit, push e deploy desta API. Publicacao exclusivamente por push em main e webhook da Vercel, sem CLI. Testes/build anteriores preservados, sem mudanca posterior de codigo; verificacao publica sera feita apos o deploy. Esta autorizacao nao troca a fonte do site nem inicia migracao de fotos.
 
+## Aceite publico da API e cache aprovado
+
+- API publicada no commit `b516da7`. Usuario selecionou CA5278 como imovel destinado ao Premium, transferiu 10 fotos, confirmou a galeria e salvou publicacao nessa unidade. AP0104 nao foi usado para publicacao publica neste aceite.
+- Verificacao real por GET: detalhe Premium 200 com 10 midias, foto/miniatura WebP 200, campos privados estruturados ausentes e detalhe Matriz 404. Nenhum imovel modificado pelo agente. Site Premium continua inalterado e nao integrado.
+- Usuario aprovou ate 60 segundos de desatualizacao para dados; fotos mantem verificacao por requisicao. Cache interno limitado por instancia implementado depois do rate limiting, com expiracao rigida e sem cache de erros. HTTP/CDN continuam no-store para preservar protecoes em cada acesso. Detalhes em `docs/catalog-public-api.md`.
+- Testes locais da API/cache aprovados com dependencias simuladas e relogio controlado. Nenhuma consulta ao Neon, mudanca de schema, transferencia Blob ou alteracao do site nesta etapa. Sem novo commit/push/deploy.
+- Build aprovado e diff revisado, com `git diff --check` sem erros. Nenhuma dependencia adicionada. Validacao deste cache em producao ainda pendente.
+- Proximo passo: publicacao autorizada e verificacao em producao; depois integracao/paridade do Premium. Nao considerar a integracao concluida por haver uma API funcional.
+
 ## Implementacao do papel corretor - 2026-09-17
 
 - Novo papel disponivel no codigo de convites, gestao de usuarios, sessao e autorizacao de catalogo/fotos. Administracao de contas/configuracoes continua exclusiva de admin ativo confirmado no banco. Nenhuma conta real criada ou alterada.
