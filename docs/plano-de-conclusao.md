@@ -62,7 +62,22 @@ Entrega 2 documentada em `docs/catalog-import.md`. Migracao 007 aplicada; adapta
 
 Proxima acao: curadoria/publicacao por unidade. Catalogo e galeria publicados nos commits 9bfc219 e f6b02b9. Usuario confirmou no fluxo de producao: selecao de fotos, miniaturas, salvamento, persistencia apos atualizar e alteracao persistente da principal. Nao repetir esses testes sem mudanca relevante. Permissao confirmada: admin e cadastro podem cadastrar, editar e publicar; corretor pode cadastrar/editar, mas nao publicar. Antes de implementar elegibilidade automatica, confirmar regras comerciais do Premium; nao existem criterios concretos de preco/tipo/localizacao documentados neste repositorio. Nenhum acesso ao repositorio do site autorizado.
 
-## Papel corretor - 2026-09-17
+## Preparacao da migracao gradual de fotos - 2026-09-17
+
+- Commit c7c6807 enviado; usuario confirmou a secao Publicacao por unidade em producao. Acesso publico por HTTPS validado, com login e protecao das rotas privadas. Isso nao valida novas operacoes autenticadas em producao.
+- Preflight somente leitura no Neon: 45.152 referencias de fotos em 2.221 imoveis; 37.608 URLs distintas; 3.624 referencias HTTP. Host observado: lh3.googleusercontent.com. Contagens refletem o banco atual, nao uma nova leitura do feed.
+- Blob sem token/OIDC local disponivel. Nao copiar credencial de producao nem alterar configuracao. Executor real precisa rodar em ambiente autorizado com Blob, preferencialmente na Vercel com OIDC existente.
+- Usuario aprovou como piloto o imovel aberto no editor (ID configurado exclusivamente no servidor), limitado a 3 fotos. Preservar galeria manual e publicacao.
+- Executor implementado em `/admin/image-pilot`: somente admin ativo confirmado no banco, uma foto por POST, selecao persistente das primeiras 3 URLs unicas na ordem da fonte. Nao recebe URL, identidade de ator ou ID de imovel do formulario. Nenhuma execucao no GET.
+- Migracao 012 aplicada no Neon: tabela de controle com slots 1-3, hash por URL/imovel, tentativa com identificador, limite de 3 tentativas por foto e expiracao de processamento em 10 minutos. Transacoes curtas bloqueiam usuario e imovel; download/Blob fora da transacao. Recibos concluidos permanecem apos exclusao de imagem, evitando reimportacao silenciosa.
+- Downloader restrito ao hostname exato observado no feed, sem credenciais, portas alternativas, redirecionamentos ou fallback HTTP. Upgrade para HTTPS, IPv4 resolvido e verificado contra redes reservadas/privadas antes da conexao TLS, limite de 15 segundos e 4 MB em streaming. Reutiliza validacao por bytes/pixels, WebP e remocao de metadados.
+- Fotos sao anexadas depois da galeria existente; principal existente nunca e substituida. Sem principal existente, primeira foto concluida torna-se principal. Videos e migracao global/deduplicacao entre imoveis ficam fora do piloto. Falhas conservam intencao de limpeza na fila existente; sem trafego, arquivos pendentes podem aguardar limpeza.
+- Teste image-pilot no Neon aprovado: autorizacao, concorrencia, limite, deduplicacao, retry de envio parcial, preservacao da galeria/principal, remocao sem reimportacao e publicacao intacta. Download e Blob simulados no teste; fixtures removidas. Build e diff check aprovados.
+- Amostra real do piloto baixada e processada somente em memoria: 97.022 bytes de origem, WebP de 88.682 bytes, 1024x768. Nenhuma URL sensivel registrada, nenhum arquivo persistido, nenhum envio ao Blob. Transferencia real depende de commit/push autorizado e execucao na Vercel com OIDC. Sem novas credenciais locais, commit ou push nesta entrega.
+
+- Em 2026-09-18, usuario autorizou commit/push do piloto para disponibilizar a pagina em producao. Teste e build finais aprovados, sem mudanca posterior de codigo; nao repetidos. Aceite com transferencia real para Blob permanece pendente apos deploy automatico pelo GitHub.
+
+## Implementacao do papel corretor - 2026-09-17
 
 - Novo papel disponivel no codigo de convites, gestao de usuarios, sessao e autorizacao de catalogo/fotos. Administracao de contas/configuracoes continua exclusiva de admin ativo confirmado no banco. Nenhuma conta real criada ou alterada.
 - Migracao 011 aplicada no Neon com autorizacao do usuario: adiciona somente o valor corretor ao enum compartilhado por usuarios e convites; anteriores preservadas e nao reaplicadas. Enum e registro unico em schema_migrations confirmados por consulta somente leitura. Nenhuma conta existente alterada.
