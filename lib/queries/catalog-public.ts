@@ -12,6 +12,7 @@ function visible(unit: PublicationUnit) {
 function publicRows(unit: PublicationUnit) {
   // Private location, source identity, raw metadata and external media never leave SQL.
   return sql`select i.id,i.codigo,i.updated_at,
+    coalesce(nullif(btrim(d #>> '{rawMetadata,nomeCondominio}'),''),nullif(btrim(d #>> '{rawMetadata,nomeEdificio}'),'')) as condominium_name,
     exists(select 1 from unidades_publicacao u where u.imovel_id=i.id and u.unidade=${unit} and u.inclusao_manual) as manual,
     jsonb_build_object('title',d->'title','description',d->'description','prices',d->'prices',
       'negotiation',d->'negotiation','usageCategory',d->'usageCategory','taxonomy',d->'taxonomy',
@@ -29,18 +30,20 @@ async function projectRows(rows: { id: string; codigo: string; data: unknown }[]
 
 export async function listPublicProperties(unit: PublicationUnit, filters: PublicFilters) {
   const price = filters.negocio === 'Alugar' ? sql`(data #>> '{prices,rent}')::numeric` : sql`(data #>> '{prices,sale}')::numeric`;
+  const area = sql`coalesce((data #>> '{areas,usable}')::numeric,(data #>> '{areas,total}')::numeric)
+    * case data #>> '{areas,unit}' when 'ha' then 10000 when 'm2' then 1 else null end`;
   const where = sql`${price} > 0
     and (${filters.bairro ?? null}::text is null or data #>> '{publicLocation,officialNeighborhood}'=${filters.bairro ?? null})
     and (${filters.cidade ?? null}::text is null or data #>> '{publicLocation,city}'=${filters.cidade ?? null})
     and (${filters.tipo ?? null}::text is null or data #>> '{taxonomy,normalizedType}'=${filters.tipo ?? null})
+    and (${filters.condominio ?? null}::text is null or condominium_name=${filters.condominio ?? null})
     and (${filters.valorMinimo ?? null}::numeric is null or ${price} >= ${filters.valorMinimo ?? null}::numeric)
     and (${filters.valorMaximo ?? null}::numeric is null or ${price} <= ${filters.valorMaximo ?? null}::numeric)
     and (${filters.suitesMinimas ?? null}::int is null or coalesce((data #>> '{rooms,suites}')::int,0) >= ${filters.suitesMinimas ?? null})
     and (${filters.vagasMinimas ?? null}::int is null or coalesce((data #>> '{rooms,parkingSpaces}')::int,0) >= ${filters.vagasMinimas ?? null})
     and (${filters.quartosMinimos ?? null}::int is null or coalesce((data #>> '{rooms,bedrooms}')::int,0) >= ${filters.quartosMinimos ?? null})
-    and (${filters.areaMinima ?? null}::numeric is null or
-      coalesce((data #>> '{areas,usable}')::numeric,(data #>> '{areas,total}')::numeric,0)
-      * case when data #>> '{areas,unit}'='ha' then 10000 else 1 end >= ${filters.areaMinima ?? null}::numeric)`;
+    and (${filters.areaMinima ?? null}::numeric is null or ${area} >= ${filters.areaMinima ?? null}::numeric)
+    and (${filters.areaMaxima ?? null}::numeric is null or ${area} <= ${filters.areaMaxima ?? null}::numeric)`;
   const order = filters.order === 'maior_valor' ? sql`${price} desc, id` : filters.order === 'menor_valor'
     ? sql`${price} asc, id` : filters.order === 'mais_recentes' ? sql`updated_at desc, id` : sql`manual desc, updated_at desc, id`;
   // One statement fixes the count and page to the same database snapshot.
@@ -62,14 +65,16 @@ export async function getPublicProperty(unit: PublicationUnit, code: string): Pr
 export async function getPublicFilterOptions(unit: PublicationUnit) {
   const rows = await sql`with published as (${publicRows(unit)})
     select distinct data #>> '{publicLocation,officialNeighborhood}' as bairro,
-      data #>> '{publicLocation,city}' as cidade,data #>> '{publicLocation,state}' as estado,data #>> '{taxonomy,normalizedType}' as tipo
-    from published order by bairro,cidade,tipo limit 1001`;
+      data #>> '{publicLocation,city}' as cidade,data #>> '{publicLocation,state}' as estado,data #>> '{taxonomy,normalizedType}' as tipo,
+      condominium_name as condominio
+    from published order by bairro,cidade,tipo,condominio limit 1001`;
   if (rows.length > 1000) throw new Error('FILTER_OPTIONS_LIMIT');
   // Reuse the validated public string schemas, rather than returning raw SQL values.
   return rows.map(row => {
     const location = publicCatalogItemSchema.shape.location.parse({officialNeighborhood:row.bairro,neighborhoodAlias:null,city:row.cidade,state:row.estado});
     const type = publicCatalogItemSchema.shape.taxonomy.shape.normalizedType.parse(row.tipo);
-    return {bairro:location.officialNeighborhood,cidade:location.city,estado:location.state,tipo:type};
+    const condominium = row.condominio === null ? null : publicCatalogItemSchema.shape.title.max(120).parse(row.condominio);
+    return {bairro:location.officialNeighborhood,cidade:location.city,estado:location.state,tipo:type,condominio:condominium};
   });
 }
 

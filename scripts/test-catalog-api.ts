@@ -32,11 +32,14 @@ function noLeak(value: unknown) {
 
 async function local() {
   for (const query of ['page=0','page=1.5','perPage=49','valorMinimo=-1','valorMinimo=1e5','areaMinima=NaN',
-    'valorMinimo=10&valorMaximo=1','page=1&page=2','role=admin','__proto__=x','quartosMinimos=-1','negocio=venda']) {
+    'valorMinimo=10&valorMaximo=1','areaMinima=2&areaMaxima=1','areaMaxima=-1','areaMaxima=1e5',
+    'condominio=','condominio='+ 'a'.repeat(121),'condominio=A&condominio=B',
+    'page=1&page=2','role=admin','__proto__=x','quartosMinimos=-1','negocio=venda']) {
     assert.throws(()=>parsePublicQuery(new URLSearchParams(query)));
   }
   const filters = parsePublicQuery(new URLSearchParams('valorMinimo=900719925474099.1&valorMaximo=900719925474099.2&quartosMinimos=0'));
   assert.equal(filters.valorMinimo,'900719925474099.1');
+  assert.equal(parsePublicQuery(new URLSearchParams('condominio=Teste&areaMaxima=0.000001')).areaMaxima,'0.000001');
   const item=projectPublicItem('AP9999','premium',data,[{id:imageId,position:0,is_primary:true}]);
   noLeak(item); assert.equal(item.prices.sale,'1234567.89'); assert.equal(item.rooms.bedrooms,0);
   assert(item.media[0].url?.startsWith('https://admin.inglaterrapremium.com.br/api/blob-image/public/premium/'));
@@ -160,6 +163,21 @@ async function database() {
     list=await listPublicProperties('premium',parsePublicQuery(new URLSearchParams({cidade:city,negocio:'Alugar',areaMinima:'19999',quartosMinimos:'0'})));
     assert.equal(list.total,1);
     assert.equal((await listPublicProperties('premium',parsePublicQuery(new URLSearchParams({cidade:city,areaMinima:'20001'})))).total,0);
+    const count = async (extra: Record<string,string>) => (await listPublicProperties('premium',parsePublicQuery(new URLSearchParams({cidade:city,...extra})))).total;
+    assert.equal(await count({areaMaxima:'19999.999999'}),0);
+    assert.equal(await count({areaMinima:'20000',areaMaxima:'20000'}),1);
+    await sql`update imoveis set curadoria=${sql.json({rawMetadata:{nomeCondominio:'  Condominio sintetico  ',nomeEdificio:'Edificio alternativo'}})} where id=${ids[0]}`;
+    assert.equal(await count({condominio:'Condominio sintetico'}),1);
+    assert.equal(await count({condominio:'Edificio alternativo'}),0);
+    let options=(await getPublicFilterOptions('premium')).filter(option=>option.cidade===city);
+    assert.deepEqual(options.map(option=>option.condominio),['Condominio sintetico']); noLeak(options);
+    await sql`update imoveis set curadoria=${sql.json({rawMetadata:{nomeCondominio:' ',nomeEdificio:'Edificio alternativo'},areas:{unit:'m2',usable:'0.000001',total:'20',private:null}})} where id=${ids[0]}`;
+    assert.equal(await count({condominio:'Edificio alternativo',areaMinima:'0.000001',areaMaxima:'0.000001'}),1);
+    assert.equal(await count({areaMaxima:'0'}),0);
+    await sql`update imoveis set curadoria=${sql.json({areas:{unit:'m2',usable:null,total:null,private:null}})} where id=${ids[0]}`;
+    assert.equal(await count({areaMinima:'0'}),0);
+    assert.equal(await count({areaMaxima:'20000'}),0);
+    assert.equal(await count({}),1);
     await sql`update imoveis set curadoria=${sql.json({prices:{sale:'555.55',rent:null,condominium:null,iptu:null},negotiation:'venda',title:'Titulo revisado'})} where id=${ids[0]}`;
     const detail=await getPublicProperty('premium',code); assert(detail); assert.equal(detail.prices.sale,'555.55'); assert.equal(detail.title,'Titulo revisado');
     assert.equal((await listPublicProperties('premium',parsePublicQuery(new URLSearchParams({cidade:city,negocio:'Alugar'})))).total,0);

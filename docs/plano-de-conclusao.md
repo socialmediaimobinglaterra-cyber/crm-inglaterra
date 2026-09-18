@@ -1,5 +1,28 @@
 # Plano de conclusao do CRM
 
+## Publicacao da previa protegida autorizada - 2026-09-18
+
+- Usuario autorizou commit/push/deploy da previa protegida, preservando busca publica. CRM publica somente os filtros condominio/areaMaxima ja testados; Premium passa a permitir /preview/crm com admin validado no middleware e no servidor. Catalogo da previa Vercel usa API oficial, sem banco legado de imoveis.
+- Protecao nega editor, visitante, sessao invalida, ausencia de segredo e falha de autorizacao; POST exige origem do site. Quota/registro OpenAI existentes mantidos na Vercel. Sem segredo novo, alteracao de ambiente ou migracao.
+- Build Premium, testes de acesso/conversa e smoke de producao local aprovados. Nenhuma chamada real OpenAI. Filtros CRM ja tiveram build e teste Neon aprovado, sem mudanca de codigo posterior; nao repetidos.
+- Commits/push/deploy e teste autenticado na Vercel pendentes neste registro. Previa nao substitui busca publica nem conclui paridade global.
+
+## Ajuste da previa para busca conversacional - 2026-09-18
+
+- Usuario confirmou que a busca Premium e por conversa com IA. Formulario tecnico anterior nao substituira essa interface. Autorizou adaptacoes em componentes compartilhados sem commit/push/deploy.
+- Premium reutiliza HomeHeroSearch, BuscaImoveisClient e interpretacao existente, com vocabulario/resultados CRM apenas na previa local: http://localhost:3004/preview/crm . Defaults publicos preservados. Nenhuma nova alteracao de API/banco CRM nesta etapa.
+- Testes simulados da IA cobrem estado cumulativo, remocao de criterios, privacidade, decimais, falhas, limite local e bloqueio de producao. Navegador consultou CRM real apos respostas IA simuladas: resultados 1/0/1, desktop/mobile e foto verificados. Build Premium aprovado.
+- Chave OpenAI ausente localmente; conversa real e aceite visual pendentes. Sem consumo OpenAI, alteracao de imoveis reais, migracao, commit, push ou deploy. Integracao completa continua aberta.
+
+## Previa de busca Premium - 2026-09-18
+
+- Usuario aprovou a ficha local CA5278 e autorizou nome de condominio/edificio publico. Endereco privado e demais metadados permanecem excluidos.
+- API ganhou condominio (nome exato com trim; nomeCondominio ou fallback nomeEdificio) e areaMaxima. Area util ou total, hectares convertidos para m2, numeric sem perda decimal; area/unidade desconhecida excluida quando filtrada. Sem migracao.
+- Teste autorizado no Neon: fixtures exclusivas para nomes, limites decimais, hectares, visibilidade, privacidade, paginacao e rate limiting. Aprovado, limpeza e ausencia confirmadas; sem imoveis reais ou Blob alterados.
+- Busca local: http://localhost:3004/preview/crm/imoveis usando API local 127.0.0.1:3005 ligada ao CRM real. Somente CA5278 tem ficha navegavel nesta etapa.
+- Builds CRM/Premium, TypeScript e testes do cliente aprovados. Edge desktop/mobile sem overflow, foto real carregada; condominio e area maxima 497 excluem / 498 incluem CA5278, ficha/retorno e erro de intervalo invertido verificados.
+- Sem commit/push/deploy. Aceite visual da busca e validacao em producao pendentes; integracao completa permanece aberta.
+
 Sequencia aprovada pelo usuario em 2026-09-16. Complementa o plano de arquitetura; preserva stack, seguranca e limites de acesso aos repositorios.
 
 ## Objetivo operacional
@@ -134,6 +157,21 @@ Proxima acao: curadoria/publicacao por unidade. Catalogo e galeria publicados no
 - Testes locais da API/cache aprovados com dependencias simuladas e relogio controlado. Nenhuma consulta ao Neon, mudanca de schema, transferencia Blob ou alteracao do site nesta etapa. Sem novo commit/push/deploy.
 - Build aprovado e diff revisado, com `git diff --check` sem erros. Nenhuma dependencia adicionada. Validacao deste cache em producao ainda pendente.
 - Proximo passo: publicacao autorizada e verificacao em producao; depois integracao/paridade do Premium. Nao considerar a integracao concluida por haver uma API funcional.
+
+## Preparacao da integracao Premium - 2026-09-18
+
+- Usuario confirmou deploy do cache `b149a28` concluido e autorizou preparar alteracoes no repositorio Premium, sem publicacao em producao. Nenhuma alteracao de imovel autorizada por esta etapa.
+- Repositorio local Premium localizado e instrucoes lidas. Mudancas preexistentes na busca/IA preservadas; cliente independente de GET publico criado, sem modificar consultas ou paginas existentes.
+- Cliente validou resposta real do CA5278 com dez fotos, preservando strings decimais e excluindo campos extras. Testes locais e TypeScript aprovados; build completo interrompido sem conclusao. Detalhes em `docs/crm-integration-preview.md` no repositorio Premium.
+- Previa navegavel ainda pendente. Bloqueios para troca de fonte: mapeamento persistente dos slugs/codigos antigos, filtros de condominio e area maxima, cobertura de home/semelhantes/bairros/sitemap/lancamentos/condominios e paridade de estoque/midias. Nenhuma igualdade de codigo ou slug presumida. Proximo passo: resolver mapeamento de URLs com acesso somente leitura ao legado especificamente autorizado, antes de conectar as paginas.
+- Sem commit, push, deploy, migracao ou acesso direto a banco. Site publico continua no legado.
+
+## Previa local do piloto Premium - 2026-09-18
+
+- Consultas READ ONLY executadas pelo usuario confirmaram os 2.419 slugs com sufixo de codigo no Premium e assinatura de identidade de origem coincidente para CA5278 nos dois bancos. Nao extrapolar o vinculo para todo o catalogo.
+- Previa local CA5278 implementada no repositorio Premium, em localhost:3004/preview/crm/CA5278; nenhuma rota publica existente trocada. GET real do CRM, galeria compartilhada e precos decimais preservados; sem banco legado, leads ou analytics nesta rota. Bloqueada fora do desenvolvimento local, no-store/noindex.
+- Testes focados, TypeScript e build aprovados. Edge desktop/mobile verificado com imagens reais e interacao da galeria; sobreposicao desktop corrigida. Dados exigem curadoria: IPTU 0.01 e divergencia entre quantidade de banheiros e descricao. Nenhum dado real editado.
+- Sem commit/push/deploy. Proximo passo: aceite visual do piloto pelo usuario, antes de ampliar a integracao e resolver paridade/URLs de todo o catalogo.
 
 ## Implementacao do papel corretor - 2026-09-17
 
