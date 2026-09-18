@@ -1,5 +1,34 @@
 # Plano de conclusao do CRM
 
+## Escopo exclusivo CRM e proxima entrega
+
+- Usuario determinou manter as alteracoes ja feitas no site, mas proibiu novas alteracoes em seu codigo, layout, comportamento ou configuracao. Pedido subsequente de commit abrange somente o trabalho existente; nao autoriza novas mudancas no site nem push/deploy.
+- Alteracoes Premium existentes registradas no commit 08a317a, sem novos edits no site. Testes/build anteriores aprovados; nao repetidos sem mudanca. Integracao futura deve ser tratada pelo CRM e seu contrato de API.
+- Retomada da entrega 3: gestao de condominios e lancamentos dentro do CRM. Migracao 007 ja possui tabelas, vinculos de imoveis e unidades_publicacao; inventario local nao encontrou consultas, telas ou endpoints dedicados. Nao confundir filtro por nome importado com cadastro editorial completo de condominio.
+- Antes de definir carga inicial, confirmar se os cadastros serao manuais no CRM ou se existe arquivo/base autorizada para importacao. Nao criar registros ficticios, agrupar automaticamente por nome nem extrair cadastros do site sem definicao dessa origem.
+- Preservar permissoes: admin/cadastro editam e publicam, corretor edita sem publicar; endereco privado separado, API GET por unidade. Sem acesso novo ao Neon, migracao ou publicacao nesta retomada.
+
+## Complemento da ficha na previa Premium - 2026-09-18
+
+- Previa CA5278 ampliada com diferenciais da descricao e localizacao publica bairro/cidade/UF. Cliente valida caracteristicas estruturadas da API, mas CA5278 tem array vazio; sem inventar dados. Nenhuma mudanca de schema/API CRM ou registro real.
+- Testes focados e TypeScript aprovados; desktop/mobile revisados sem overflow. Ficha completa ainda depende de contatos oficiais administraveis, semelhantes/URLs, videos e cobertura de fotos. Nao reintroduzir endereco privado ou dados de corretor do legado.
+- Alteracoes locais, sem commit/push/deploy ou troca de busca publica.
+
+## Mapeamento de URL do piloto conferido - 2026-09-18
+
+- URL legada CA5278-INIC fornecida pelo usuario respondeu HTTP 200 com titulo/codigo esperados. URL /imoveis/...-ca5278 encontrada no sitemap publico Premium tambem respondeu 200. Sem consulta autenticada a banco ou inferencia de slug pelo titulo.
+- Manifesto piloto docs/crm-url-mapping.json criado no Premium, limitado a CA5278 e inativo. Preservar caminho atual /imoveis ao conectar ficha CRM; caminho legado /imovel deve usar alias explicito quando a camada publica for autorizada. Nunca encaminhar visitante para previa admin.
+- Dominio legado www.inglaterrapremium.com ainda separado da Vercel; compatibilidade do dominio depende de encaminhamento/configuracao futura. Sem DNS, redirects publicos, alteracao de imoveis, commit ou deploy nesta etapa.
+- Proxima dependencia de implementacao publica: ficha completa/paridade CRM e cobertura de identidades/estoque alem do piloto, com plano de retorno. Nao generalizar sufixo INIC para outros codigos.
+
+## Aceite da conversa real na previa protegida - 2026-09-18
+
+- Commits CRM 26471a1 e Premium 31c0a9e enviados ao GitHub com autorizacao; ambos os status Vercel confirmaram deploy concluido. GET publico confirmou filtro condominio no CRM e protecao/no-store/noindex na previa Premium.
+- Usuario acessou a previa autenticada na Vercel e testou a conversa real: casa no Royal Park com pelo menos cinco suites retornou CA5278; refinamento para area maxima 497 m2 retornou zero mantendo criterios anteriores (captura); alteracao para 498 m2 fez o imovel reaparecer (confirmacao textual). Aceite do fluxo piloto com IA real e CRM, nao apenas simulacao.
+- Busca publica nao foi substituida. Este aceite nao comprova paridade de todo o estoque, URLs, ficha completa, semelhantes, home ou sitemap.
+- Proxima entrega delimitada: preservar identidade/URLs atuais na transicao, com CA5278 como piloto. A correspondencia de identidade foi conferida anteriormente, mas o slug completo vigente nao foi coletado. Solicitar URL publica atual antes de propor mapeamento; nao gerar slug pelo titulo nem trocar rotas publicas.
+- Registro documental apenas; sem novos testes/build, commit, push, deploy ou alteracoes de catalogo.
+
 ## Publicacao da previa protegida autorizada - 2026-09-18
 
 - Usuario autorizou commit/push/deploy da previa protegida, preservando busca publica. CRM publica somente os filtros condominio/areaMaxima ja testados; Premium passa a permitir /preview/crm com admin validado no middleware e no servidor. Catalogo da previa Vercel usa API oficial, sem banco legado de imoveis.
