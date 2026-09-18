@@ -10,11 +10,11 @@ export async function getImagePilotStatus(email:string,id:string) {
   return sql.begin(async tx=>{
     await lock(tx,email,id);
     const [property]=await tx`select codigo from imoveis where id=${id}`;
-    const rows=await tx<{slot:number;status:string;attempts:number}[]>`select slot,status,attempts from catalog_image_pilot where imovel_id=${id} order by slot`;
+    const rows=await tx<{slot:number;status:string;attempts:number}[]>`select slot,status,attempts from catalog_image_pilot where imovel_id=${id} and slot<=3 order by slot`;
     return {code:String(property.codigo),items:Array.from(rows)};
   });
 }
-async function lock(tx: Tx, email: string, id: string) {
+export async function lockImageMigrationProperty(tx: Tx, email: string, id: string) {
   catalogIdSchema.parse(id);
   const users = await tx`select id from usuarios where email=${email.trim().toLowerCase()} and ativo and role='admin' for share`;
   if (!users.length) throw new Error('PILOT_FORBIDDEN');
@@ -22,6 +22,7 @@ async function lock(tx: Tx, email: string, id: string) {
   if (!property) throw new Error('PILOT_NOT_FOUND');
   return property;
 }
+const lock = lockImageMigrationProperty;
 
 export async function claimPilotImage(email: string, id: string) {
   return sql.begin(async tx => {
@@ -40,16 +41,22 @@ export async function claimPilotImage(email: string, id: string) {
         if(urls.size===3) break;
       }
     }
+    return claimSelectedImage(tx,id,[1,2,3]);
+  });
+}
+
+// Caller holds the authorized property lock. Receipt writes follow image writes.
+export async function claimSelectedImage(tx:Tx,id:string,slots:number[]) {
     const [working] = await tx`select slot from catalog_image_pilot where imovel_id=${id} and status='working' and claimed_at>clock_timestamp()-interval '10 minutes'`;
     if(working) return null;
-    const [job] = await tx`select slot,source_url,image_id from catalog_image_pilot where imovel_id=${id} and status<>'done' and attempts<3 order by slot limit 1`;
+    if(!slots.length) return null;
+    const [job] = await tx`select slot,source_url,image_id from catalog_image_pilot where imovel_id=${id} and slot in ${tx(slots)} and status<>'done' and attempts<3 order by slot limit 1`;
     if(!job) return null;
     // Stale attempts retain their own paths in the existing cleanup queue.
     if(job.image_id) await tx`update catalog_images set status='deleting',cleanup_at=null where id=${job.image_id} and status='pending'`;
     const attempt=randomUUID();
-    await tx`update catalog_image_pilot set status='working',attempt_id=${attempt},attempts=attempts+1,claimed_at=clock_timestamp(),image_id=null where imovel_id=${id} and slot=${job.slot}`;
+    await tx`update catalog_image_pilot set status='working',attempt_id=${attempt},attempts=attempts+1,claimed_at=clock_timestamp(),image_id=null,last_error=null where imovel_id=${id} and slot=${job.slot}`;
     return {slot:Number(job.slot),url:String(job.source_url),attempt};
-  });
 }
 
 export async function beginPilotUpload(email:string,propertyId:string,slot:number,attempt:string,info:{width:number;height:number;bytes:number}) {
@@ -66,7 +73,7 @@ export async function beginPilotUpload(email:string,propertyId:string,slot:numbe
   });
 }
 
-export async function completePilotImage(email:string,propertyId:string,slot:number,attempt:string,id:string) {
+export async function completePilotImage(email:string,propertyId:string,slot:number,attempt:string,id:string,storedBytes=0) {
   await sql.begin(async tx=>{
     await lock(tx,email,propertyId);
     // Parent lock serializes completions; image precedes receipt writes, as in cleanup's FK update.
@@ -75,10 +82,16 @@ export async function completePilotImage(email:string,propertyId:string,slot:num
     const [current]=await tx`select coalesce(max(position),-1)+1 as position,count(*) filter(where is_primary)::int as primaries from catalog_images where imovel_id=${propertyId} and status='ready'`;
     const rows=await tx`update catalog_images set status='ready',position=${current.position},is_primary=${current.primaries===0} where id=${id} and status='pending' returning id`;
     if(!rows.length) throw new Error('PILOT_EXPIRED');
-    await tx`update catalog_image_pilot set status='done' where imovel_id=${propertyId} and slot=${slot}`;
+    await tx`update catalog_image_pilot set status='done',stored_bytes=${storedBytes},last_error=null where imovel_id=${propertyId} and slot=${slot}`;
   });
 }
 
-export async function failPilotImage(propertyId:string,slot:number,attempt:string) {
-  await sql`update catalog_image_pilot set status='failed' where imovel_id=${propertyId} and slot=${slot} and attempt_id=${attempt} and status='working'`;
+export async function failPilotImage(propertyId:string,slot:number,attempt:string,reason:'download'|'image'|'storage'|'finalize'='finalize') {
+  await sql`update catalog_image_pilot set status='failed',last_error=${reason} where imovel_id=${propertyId} and slot=${slot} and attempt_id=${attempt} and status='working'`;
+}
+
+export async function recordImageDownload(propertyId:string,slot:number,attempt:string,bytes:number) {
+  const rows=await sql`update catalog_image_pilot set downloaded_bytes=downloaded_bytes+${bytes}
+    where imovel_id=${propertyId} and slot=${slot} and attempt_id=${attempt} and status='working' returning slot`;
+  if(!rows.length) throw new Error('PILOT_EXPIRED');
 }

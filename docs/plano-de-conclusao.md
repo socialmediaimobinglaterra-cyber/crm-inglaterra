@@ -77,6 +77,27 @@ Proxima acao: curadoria/publicacao por unidade. Catalogo e galeria publicados no
 
 - Em 2026-09-18, usuario autorizou commit/push do piloto para disponibilizar a pagina em producao. Teste e build finais aprovados, sem mudanca posterior de codigo; nao repetidos. Aceite com transferencia real para Blob permanece pendente apos deploy automatico pelo GitHub.
 
+## Aceite do piloto de fotos em producao - 2026-09-18
+
+- Piloto publicado pelo commit `4636c37`; usuario confirmou abertura de `/admin/image-pilot` no dominio oficial.
+- Usuario executou as tres transferencias e confirmou as fotos na galeria, preservando as fotos anteriores e a principal. Aceite manual com fotos reais e Blob de producao, nao apenas simulacao.
+- Sem falha relatada neste fluxo. Esta confirmacao nao constitui validacao de migracao em massa, custos ou integracao publica com o site.
+- Proximo passo: preparar migracao gradual em lotes retomaveis, com limites de processamento, acompanhamento de falhas e controle de custos antes de ampliar a execucao. Nenhuma transferencia adicional autorizada ou iniciada neste registro.
+- Alteracao somente documental; testes/build nao repetidos. Sem novo commit/push.
+
+## Lotes retomaveis de fotos - 2026-09-18
+
+- Nova rota `/admin/image-migration`, exclusiva de admin ativo confirmado no banco na pagina, nas actions e nas consultas. Selecao explicita por codigo do imovel, de 1 a 10 fotos por lote. Preparar lote grava somente a selecao; transferir exige outro clique. Nao ha scheduler nem selecao automatica de todo o catalogo.
+- Migracao `013_catalog_image_batches.sql` aplicada no Neon com autorizacao explicita. Mantem os recibos da tabela do piloto e amplia seus slots ate o teto existente de 1.000 imagens; adiciona cabecalho/itens de lote e contadores de bytes. Migracoes anteriores imutaveis. Fotos concluidas no piloto ou posteriormente removidas nao sao reimportadas.
+- Selecao fixa e deduplicada por URL canonica/imovel, na ordem da fonte. Criacoes concorrentes retomam o mesmo lote inacabado. Cada requisicao transfere uma foto; o navegador continua somente o lote escolhido, sequencialmente. Pausar interrompe as proximas requisicoes, sem cancelar uma gravacao em andamento. Fechar a pagina para a continuacao; a foto em andamento pode concluir. Retomada pelo mesmo lote, inclusive apos recarregar.
+- Reutiliza downloader HTTPS restrito, validacao real, WebP, miniatura e Blob privado. Locks usuario/imovel, lease de 10 minutos, identificador por tentativa e maximo de 3 tentativas por foto no banco; sem transacao aberta durante rede. Limite de 10 fotos e 30 tentativas por lote; falhas param a continuacao automatica. Limite esgotado exige revisao, nao cria tentativa nova por preparar outro lote.
+- Progresso, falhas padronizadas e volumes visiveis, sem URLs, hashes ou erros internos. Downloads completos contam inclusive retries; bytes gravados representam imagens/miniaturas confirmadas, nao toda a cobranca Blob. Downloads interrompidos, operacoes, trafego de leitura e arquivos aguardando limpeza nao sao uma estimativa financeira. Custo monetario depende da conta; nao foi inventado orcamento ou preco. Nao ha deduplicacao fisica entre imoveis nesta etapa.
+- Preserva fotos manuais, ordem/principal existentes e estado de publicacao. Reaproveita fila de limpeza de arquivos pendentes; sem trafego, limpeza continua podendo aguardar. URL alterada pela origem e considerada nova referencia; nao tenta inferir identidade visual nem substitui automaticamente foto anterior.
+- `test:image-batches --db` aprovado no Neon: entradas estritas, bloqueio de corretor/cadastro/inativo/ausente, criacao concorrente/idempotente, reaproveitamento do piloto, concorrencia de transferencia, retomada, falha parcial, teto de retries, recuperacao de lease, contadores, galeria/publicacao preservadas e projecao segura. Fixtures exclusivas removidas e ausencia confirmada. Downloads e Blob simulados; nenhum arquivo real transferido. Teste local `test:image-pilot` e build aprovados.
+- Navegador local autenticado: tela inicial renderizada e legivel, formulario e estado sem lotes conferidos. GET sem sessao redireciona para `/login`. Fluxo visual com lote, pausa/retomada e envio real ainda pendente; nao confundir testes do servico com aceite do navegador em producao.
+- Sem commit/push/deploy. Proximo passo: validar a interface do lote e publicar somente com autorizacao; depois executar um lote pequeno aprovado antes de ampliar volume. O site Premium e suas integracoes permanecem inalterados.
+- Usuario autorizou commit/push em 2026-09-18. Codigo sem mudanca desde os testes/build aprovados; verificacao final do diff, sem repetir a bateria. O deploy nao executa transferencias; validacao real do lote continua pendente.
+
 ## Implementacao do papel corretor - 2026-09-17
 
 - Novo papel disponivel no codigo de convites, gestao de usuarios, sessao e autorizacao de catalogo/fotos. Administracao de contas/configuracoes continua exclusiva de admin ativo confirmado no banco. Nenhuma conta real criada ou alterada.
