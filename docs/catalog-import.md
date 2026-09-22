@@ -24,7 +24,7 @@ node --env-file=.env.local --import tsx scripts/import-catalog.ts
 node --env-file=.env.local --import tsx scripts/import-catalog.ts --apply
 ```
 
-O script usa a fonte interna `property-feed` e o adaptador `property-xml-v1`. A interface `CatalogFeedAdapter` permite outros adaptadores sem mudar as consultas de persistencia. Nao ha endpoint publico, agendamento ou integracao com o site nesta entrega.
+O script usa a fonte interna `property-feed` e o adaptador `property-xml-v1`. A interface `CatalogFeedAdapter` permite outros adaptadores sem mudar as consultas de persistencia. O agendamento acrescentado em 22/09 esta descrito abaixo; a API publica dos sites nao permite iniciar importacoes.
 
 ## Seguranca e consistencia
 
@@ -54,3 +54,19 @@ Datas locais sem fuso sao mantidas como metadados de origem; os campos ISO ficam
 - Carga real autorizada e aplicada no Neon: 2.221 inseridos, zero rejeitados. Segunda execucao: zero inseridos, zero atualizados e 2.221 inalterados. Consulta somente leitura confirmou 2.221 IDs distintos, 45.152 referencias de fotos, todos pendentes de revisao/inativos e nenhuma unidade de publicacao. Ambas as execucoes possuem log de sucesso. As imagens ainda nao foram copiadas para Blob.
 - O audit inicial apontou 1 aviso critico em Next.js 15.5.23 e 2 altos em PostCSS/sharp. Corrigidos localmente em 2026-09-17: Next 15.5.24, PostCSS 8.5.28 e sharp 0.35.4. Audit da instalacao sem vulnerabilidades conhecidas. Build e verificacoes locais de rotas/middleware e processamento de imagem aprovados; correcao ainda nao publicada.
 - Nao houve commit, push ou deploy. Nenhum site foi alterado.
+
+## Sincronizacao diaria - 2026-09-22
+
+- Usuario aprovou execucao diaria as 03h de Brasilia e uma carga imediata. `vercel.json` preparado com `0 6 * * *` (06h UTC, equivalente a 03h America/Sao_Paulo no fuso vigente). Revisar a conversao se houver mudanca oficial de fuso. Nao depende do computador local.
+- Endpoint operacional `/internal/cron/catalog-sync`, separado da API publica. Aceita somente GET com `Authorization: Bearer <CRON_SECRET>` em `VERCEL_ENV=production`. Falha fechada se o segredo faltar, tiver menos de 32 caracteres ou contiver espacos. Comparacao de hashes em tempo constante; nenhum segredo em URL ou log. HEAD/OPTIONS/metodos de escrita retornam 405 sem executar; local e preview retornam 404.
+- URL e identidade da fonte sao fixas no servidor; parametros de consulta sao recusados. Reutiliza `importCatalog`, validacao integral e aplicacao transacional existentes; nenhuma nova regra de curadoria, vinculos ou fotos. Limite da Function de 300 segundos. Logs de inicio/sucesso/falha controlada continuam em sincronizacoes_log; encerramento forcado pode deixar running e deve ser investigado pelo log Vercel, nao interpretado como sucesso.
+- Repeticoes sao idempotentes quanto ao catalogo, mas podem registrar novas execucoes. Locks existentes serializam a aplicacao e rejeitam snapshots antigos; duas chamadas concorrentes ainda podem baixar o XML em paralelo. Falhas retornam 503 generico, sem XML ou credenciais. Nao ha retry automatico implementado ou promessa de alerta por e-mail.
+- Ativacao pendente: no painel do projeto CRM da Vercel, confirmar `DATABASE_URL` e `PROPERTY_FEED_URL` em Production e cadastrar `CRON_SECRET` aleatorio com pelo menos 32 caracteres. Nao copiar segredos para o repositorio/chat. Depois publicar via push autorizado no GitHub e confirmar o cron no painel; nenhum CLI Vercel usado.
+- Referencias: https://vercel.com/docs/cron-jobs/quickstart e https://vercel.com/docs/cron-jobs/manage-cron-jobs . A Vercel envia o segredo pelo header; cron em producao depende do deploy e das configuracoes do projeto.
+- Testes locais de autenticacao/ambiente/metodos/parametros/cache/falha e horario aprovados; regressao do parser aprovada. Build e smoke HTTP do Next aprovados: local GET 404, outros metodos 405, todos no-store. Sem executar o agendamento em producao nesta etapa.
+
+### Resultado da carga imediata autorizada
+
+- XML atual: 2.221 imoveis, 45.199 referencias de fotos, zero rejeitados. Aplicacao: 42 inseridos, 1.640 atualizados, 539 inalterados, 42 ausentes, zero manuais afetados. Ausentes permanecem no CRM mas deixam de ser elegiveis na API enquanto fora da fonte.
+- Consulta posterior: 2.263 imoveis externos armazenados, 2.221 presentes. CA2054 continua sem correspondencia pelo codigo atual ou referencias textuais nos dados de origem. Nao foi criado, publicado nem renumerado um cadastro para simular sua presenca.
+- Fotos nao foram baixadas; vinculacao dos novos imoveis a condominios nao e automatica nesta importacao. Curadoria e vinculos existentes nao sao sobrescritos pelo SQL de importacao. Nao houve mudanca no site Premium.

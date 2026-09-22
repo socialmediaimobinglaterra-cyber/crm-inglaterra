@@ -1,5 +1,14 @@
 # Plano de conclusao do CRM
 
+## Atualizacao diaria XML - 2026-09-22
+
+- Usuario confirmou cadastro das variaveis no painel e autorizou commit/push do agendamento. O deploy anterior informado pelo usuario ainda nao incluia estes arquivos. Configuracao dos valores nao foi inspecionada; ativacao e primeira execucao em producao continuam dependendo da verificacao apos este novo deploy.
+
+- Usuario autorizou sincronizacao diaria as 03h de Brasilia e atualizacao imediata usando a fonte e Neon do CRM. Carga realizada: 2.221 itens validos; 42 novos, 1.640 atualizados, 539 inalterados e 42 ausentes. Consulta posterior confirmou 2.263 externos armazenados e 2.221 presentes. CA2054 ainda nao localizado nos dados importados.
+- Preparados cron Vercel 06h UTC e rota interna autenticada, restrita a Production, com segredo proprio e importador transacional existente. Sem endpoint de escrita para os sites, sem migracao e sem configuracao de projeto via CLI.
+- Testes de auth/metodos/ambiente/cache/horario e parser aprovados; build aprovado. Smoke Next confirmou bloqueio fora de Production e metodos negados sem executar importacao. Nao repetidos testes Neon de fixtures porque persistencia nao foi alterada; carga real autorizada executada pelo importador existente.
+- Ativacao diaria ainda pendente de confirmacao das variaveis Production (`PROPERTY_FEED_URL`, `DATABASE_URL`, `CRON_SECRET`), push/deploy autorizado e verificacao no painel/primeira execucao do cron. Nenhum segredo solicitado em texto ou copiado. Nenhuma alteracao do site Premium.
+
 ## Editor de condominios - 2026-09-22
 
 - `/catalog/developments/[id]` abre pelo nome em Cadastros existentes. Nome e descricao editaveis; lista dos imoveis vinculados com links para seus editores e bairro/cidade atuais. Nenhum endereco inferido do grupo. Lancamentos ainda nao recebem editor nesta entrega.
