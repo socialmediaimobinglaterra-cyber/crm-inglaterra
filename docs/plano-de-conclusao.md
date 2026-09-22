@@ -1,5 +1,24 @@
 # Plano de conclusao do CRM
 
+## Bairro priorizado novamente - decisao vigente - 2026-09-22
+
+- Usuario autorizou commit e push somente do CRM para publicar esta regra via deploy automatico do GitHub/main. Confirmacao do deploy e primeira sincronizacao com a nova versao continuam pendentes; testes ja aprovados nao foram repetidos sem alteracao de codigo.
+- Apos conferir CA1135, usuario escolheu `Bairro`, com fallback para `BairroOficial` quando `Bairro` estiver vazio, mantendo rotulos. Adaptador e rotina de manutencao ajustados apenas no CRM.
+- Aplicados 835 bairros no Neon, preservando demais campos por verificacao transacional. Consulta independente conferiu 2.263 externos sem divergencias de bairro principal/bairro_id; CA1135 agora Alphaville II. Curadoria manual, enderecos privados, fotos, vinculos e publicacao preservados.
+- Testes parser e Neon com fixtures removidas e TypeScript aprovados. Sem alteracao no site. Commit/push/deploy do adaptador pendentes: producao ainda usa prioridade oficial e pode restaura-la na proxima sincronizacao. Secoes anteriores abaixo sao historicas.
+
+## BairroOficial restaurado - decisao intermediaria substituida - 2026-09-22
+
+- Usuario revogou a prioridade comercial e determinou BairroOficial como padrao. Restaurados no Neon os 835 valores alterados, usando os oficiais originais preservados; restantes intactos. Consulta independente: 2.263 externos conferidos, zero divergencias em bairro principal ou bairro_id. CA1772 voltou a Vivendas do Arvoredo.
+- Curadoria, enderecos, fotos, vinculos, publicacao e nomes das telas preservados. Adaptador local voltou ao padrao oficial; codigo em producao ja o usava. A mudanca comercial nao foi enviada ao GitHub, portanto nao depende de novo deploy para impedir sua repeticao no cron.
+- Testes de parser/importacao/restauracao no Neon aprovados e fixtures removidas; TypeScript aprovado. Nenhuma alteracao no site ou novo commit/push nesta etapa. A secao comercial abaixo e apenas historico revogado.
+
+## Bairro comercial como dado principal - 2026-09-22
+
+- Usuario confirmou `Bairro` do XML como prioridade, `BairroOficial` como fallback vazio, sem alterar nomenclatura das telas. Adaptador corrigido e valores originais preservados internamente; contrato/API, slugs e site inalterados.
+- Atualizacao restrita no Neon aplicada aos 2.263 externos da fonte, com 835 bairros substituidos; demais valores iguais. Curadoria, endereco privado, fotos, vinculos e publicacao preservados por verificacao transacional. CA1772 confirmado como Alphaville II. Nenhum bairro inferido para os condominios sem bairro_id.
+- Testes locais de fallback/ausencia, testes Neon com fixtures removidas, comparacao independente apos aplicacao (zero divergencias) e build aprovados. Novo codigo ainda local, sem commit/push/deploy nesta etapa; publicar o adaptador antes da proxima sincronizacao para nao restaurar o bairro oficial.
+
 ## Atualizacao diaria XML - 2026-09-22
 
 - Usuario confirmou cadastro das variaveis no painel e autorizou commit/push do agendamento. O deploy anterior informado pelo usuario ainda nao incluia estes arquivos. Configuracao dos valores nao foi inspecionada; ativacao e primeira execucao em producao continuam dependendo da verificacao apos este novo deploy.

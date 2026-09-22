@@ -70,3 +70,27 @@ Datas locais sem fuso sao mantidas como metadados de origem; os campos ISO ficam
 - XML atual: 2.221 imoveis, 45.199 referencias de fotos, zero rejeitados. Aplicacao: 42 inseridos, 1.640 atualizados, 539 inalterados, 42 ausentes, zero manuais afetados. Ausentes permanecem no CRM mas deixam de ser elegiveis na API enquanto fora da fonte.
 - Consulta posterior: 2.263 imoveis externos armazenados, 2.221 presentes. CA2054 continua sem correspondencia pelo codigo atual ou referencias textuais nos dados de origem. Nao foi criado, publicado nem renumerado um cadastro para simular sua presenca.
 - Fotos nao foram baixadas; vinculacao dos novos imoveis a condominios nao e automatica nesta importacao. Curadoria e vinculos existentes nao sao sobrescritos pelo SQL de importacao. Nao houve mudanca no site Premium.
+
+## Prioridade de bairro comercial - 2026-09-22
+
+Registro historico: houve uma reversao para BairroOficial na mesma data, seguida de nova escolha por Bairro. A regra vigente esta na ultima secao abaixo.
+
+- Usuario confirmou `Bairro` como comercial e `BairroOficial` como alternativa quando vazio. Adaptador passa a preencher o campo principal publico existente com essa prioridade, mantendo nomes de telas, filtros e contrato. Os dois campos originais ficam em metadados internos; nenhuma mudanca de slug, rota ou site.
+- Ajuste pontual dos registros existentes via `scripts/update-imported-neighborhoods.ts --apply`, com SQL em `lib/queries/catalog-neighborhoods.ts`. Sem --apply, apenas calcula o impacto. Limitado a origem external e fonte property-feed; usa valores XML ja armazenados, incluindo registros atualmente ausentes da fonte. Nao consulta uma URL nova nem reimporta outros campos.
+- Atualiza somente bairro principal da origem, referencia para bairros, metadados de rastreabilidade, source_hash e updated_at. Fingerprint de transicao invalida editores antigos; a proxima importacao recompõe o hash normal do adaptador. Preserva toda a curadoria (inclusive bairro manual), enderecos, fotos, vinculos e publicacao. Verificacao transacional aborta se outros campos mudarem. Repeticao ignora registros ja marcados com os metadados novos.
+- Aplicacao real: 2.263 externos revisados, 835 valores principais diferentes substituidos, zero fallback necessario nesta base. Conferencia independente: zero divergencias entre principal, regra e bairro_id. CA1772 agora Alphaville II; Vivendas do Arvoredo mantido como oficial original.
+- Dois bairros em curadoria ja coincidiam com o comercial; nenhum override manual impediu a mudanca. Os 503 condominios nao tinham bairro_id preenchido, portanto nao receberam localizacao inferida dos imoveis. Telas de vinculos leem o bairro dos imoveis corrigidos.
+- Testes parser/fallback, fixtures Neon de importacao e backfill, idempotencia, protecao manual/ausentes e build aprovados. Fixtures removidas. Codigo do novo adaptador ainda requer commit/push/deploy: cron com a versao antiga pode restaurar a prioridade anterior.
+
+### Restauracao de BairroOficial - historico substituido
+
+- Usuario determinou voltar a BairroOficial como padrao. Adaptador local restaurado; versao publicada ja usava BairroOficial, pois a mudanca comercial nao teve commit/push.
+- `update-imported-neighborhoods.ts --apply` agora restaura somente externos da fonte com bairro principal diferente do oficial original preservado. Nao altera metadados, alias, curadoria, endereco privado, fotos, publicacao ou vinculos. Mantem verificacao transacional dos demais campos; modo sem --apply apenas calcula impacto.
+- 835 registros restaurados. Consulta posterior sobre 2.263 registros: zero divergencias de bairro principal ou bairro_id; CA1772 voltou a Vivendas do Arvoredo. Metadados originais permanecem para rastreabilidade. Nenhum condominio recebeu bairro inferido.
+- Testes de parser e Neon com fixtures removidas aprovados para a regra oficial, restauracao, repeticao e preservacao; TypeScript aprovado. A sincronizacao em producao ja esta alinhada ao padrao oficial. Sem novo deploy ou alteracao no site nesta reversao.
+
+### Regra vigente: Bairro com fallback oficial
+
+- Apos conferir CA1135, usuario voltou a determinar `Bairro` como principal; se vazio, usar `BairroOficial`. Adaptador e script de manutencao seguem essa regra, preservando campos originais e curadoria. Rotulos e contrato inalterados; site nao editado.
+- Rotina usa metadados originais preservados, altera apenas principal, bairro_id, source_hash e updated_at, e ignora valores ja alinhados. Aplicados 835 bairros; consulta independente conferiu 2.263 externos com zero divergencias e CA1135 em Alphaville II.
+- Testes de parser/fallback e Neon com fixtures removidas aprovados; TypeScript aprovado. Codigo ainda local, pendente commit/push/deploy antes da proxima sincronizacao para impedir retorno ao oficial.

@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { propertyXmlAdapter } from "@/lib/catalog/import/adapters/property-xml";
 import { importCatalog } from "@/lib/catalog/import/run";
 import { sql } from "@/lib/db";
+import { replaceImportedNeighborhoods } from '@/lib/queries/catalog-neighborhoods';
 
 const sourceKey = `test-feed-${randomUUID()}`;
 const city = `Fixture-${randomUUID()}`;
@@ -36,6 +37,19 @@ async function main() {
   assert.equal(JSON.stringify(snapshot).includes("ignored@example.invalid"), false);
   assert.equal(snapshot.items[0].source.sourceCreatedAt, null);
   assert.equal(snapshot.items[0].rawMetadata.dataCadastroOrigem, "2026-01-01");
+  assert.equal(snapshot.items[0].publicLocation.officialNeighborhood,"Alias de teste");
+  assert.equal(snapshot.items[0].rawMetadata.bairroOficialOrigem,"Bairro de teste");
+  assert.equal(snapshot.items[0].rawMetadata.bairroOrigem,"Alias de teste");
+  for(const replacement of ['<Bairro/>','<Bairro>   </Bairro>','']) {
+    const fallback=await propertyXmlAdapter.read(chunks(xml(property('001').replace('<Bairro>Alias de teste</Bairro>',replacement))),sourceKey);
+    assert.equal(fallback.summary.rejected,0);
+    assert.equal(fallback.items[0].publicLocation.officialNeighborhood,'Bairro de teste');
+  }
+  const commercialOnly=await propertyXmlAdapter.read(chunks(xml(property('001').replace('<BairroOficial>Bairro de teste</BairroOficial>',''))),sourceKey);
+  assert.equal(commercialOnly.summary.rejected,0);
+  assert.equal(commercialOnly.items[0].publicLocation.officialNeighborhood,'Alias de teste');
+  const neither=await propertyXmlAdapter.read(chunks(xml(property('001').replace('<BairroOficial>Bairro de teste</BairroOficial><Bairro>Alias de teste</Bairro>',''))),sourceKey);
+  assert.equal(neither.summary.rejected,1);
   for (const invalid of ["<Carga><Imoveis>", xml(), '<!DOCTYPE Carga [<!ENTITY x "test">]>' + document]) {
     await assert.rejects(() => propertyXmlAdapter.read(chunks(invalid), sourceKey));
   }
@@ -88,7 +102,23 @@ async function main() {
     }
     const counts = await sql<{ count: number }[]>`select count(*)::int as count from imoveis where source_key = ${sourceKey}`;
     assert.equal(counts[0].count, 2);
+    await sql`update imoveis set dados_origem=jsonb_set(dados_origem,
+      '{publicLocation,officialNeighborhood}','"Bairro de teste"'),fonte_presente=false where source_key=${sourceKey} and origem='external'`;
+    const [beforeBackfill]=await sql`select md5((to_jsonb(i)-'bairro_id'-'dados_origem'-'source_hash'-'updated_at')::text) as protected_hash,
+      source_hash from imoveis i where source_key=${sourceKey} and origem='external'`;
+    const preview=await replaceImportedNeighborhoods(sourceKey);assert.equal(preview.changed,1);assert.equal(preview.applied,false);
+    const backfill=await replaceImportedNeighborhoods(sourceKey,true);assert.equal(backfill.changed,1);assert.equal(backfill.applied,true);
+    assert.equal((await replaceImportedNeighborhoods(sourceKey,true)).pending,0);
+    const [afterBackfill]=await sql`select md5((to_jsonb(i)-'bairro_id'-'dados_origem'-'source_hash'-'updated_at')::text) as protected_hash,
+      source_hash,dados_origem #>> '{publicLocation,officialNeighborhood}' as neighborhood,
+      dados_origem #>> '{rawMetadata,bairroOficialOrigem}' as original,(select nome from bairros b where b.id=i.bairro_id) as district
+      from imoveis i where source_key=${sourceKey} and origem='external'`;
+    assert.equal(afterBackfill.protected_hash,beforeBackfill.protected_hash);
+    assert.notEqual(afterBackfill.source_hash,beforeBackfill.source_hash);
+    assert.equal(afterBackfill.neighborhood,'Alias de teste');assert.equal(afterBackfill.district,'Alias de teste');
+    assert.equal(afterBackfill.original,'Bairro de teste');
     console.log("Database import, idempotency, protected edits, rollback and concurrent import tests passed");
+    console.log('Neighborhood backfill: dry-run, absent source record, manual protection, original retained and repeat-safe verified');
   } finally {
     await sql`delete from catalog_code_reservations where owner_id in (select id from imoveis where source_key = ${sourceKey})`;
     await sql`delete from imoveis where source_key = ${sourceKey}`;

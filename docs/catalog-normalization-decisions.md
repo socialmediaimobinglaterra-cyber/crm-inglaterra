@@ -150,7 +150,7 @@ Exemplos anonimizados de divergencia:
 
 ### Decisao aprovada
 
-Usar `BairroOficial` como campo principal normalizado para busca, filtros, URLs e agrupamentos. Preservar `Bairro` como `bairro_origem` para rastreabilidade e comparacao.
+Decisao mais recente do usuario em 22/09/2026, apos comparar os campos do CA1135: usar `Bairro` como principal, com `BairroOficial` como fallback quando vazio. Substitui a escolha intermediaria pelo oficial.
 
 ### Risco
 
@@ -158,7 +158,7 @@ Usar `BairroOficial` como campo principal normalizado para busca, filtros, URLs 
 
 ### Decisao final
 
-O CRM deve priorizar `BairroOficial` para taxonomia, busca e agrupamento. `Bairro` deve ser preservado como alias/origem, sem descarte.
+O CRM usa `Bairro` como padrao de busca e agrupamento, com `BairroOficial` quando `Bairro` estiver vazio. Ambos vazios continuam sujeitos a rejeicao, sem inventar bairro. O nome das telas/filtros e o contrato nao mudam. Ambos os valores XML ficam preservados em `rawMetadata.bairroOrigem` e `rawMetadata.bairroOficialOrigem`. Nenhuma URL/slug e regenerada, nenhum endereco privado e alterado e nenhuma alteracao do site foi autorizada.
 
 ## 5. Endereco
 
@@ -316,7 +316,7 @@ Criar taxonomia interna preservando os valores originais da fonte. A selecao fin
 4. Coordenadas zero viram `NULL`.
 5. Numero zero vira `NULL` em endereco privado.
 6. Dormitorios zero fica como `0` por enquanto.
-7. `BairroOficial` vira bairro principal; `Bairro` fica preservado como alias/origem.
+7. `Bairro` e o bairro principal, com fallback para `BairroOficial` quando vazio; preservar os dois valores originais internamente, sem renomear campos visiveis.
 8. Endereco completo fica privado; API publica usa bairro/cidade/UF por padrao.
 9. Imagens seguem migracao gradual para Blob privado, com fallback temporario para URL externa.
 10. Taxonomia interna preserva valores originais e a definicao fina de filtros publicos exige revisao humana.

@@ -82,13 +82,13 @@ function mapProperty(record: XmlProperty, sourceKey: string, importedAt: string)
     prices: { sale, rent, condominium: decimal("PrecoCondominio"), iptu: decimal("PrecoIptu") },
     usageCategory,
     taxonomy: { normalizedType: slug(f.TipoImovel ?? ""), normalizedSubtype: f.SubTipoImovel ? slug(f.SubTipoImovel) : null, originalType: f.TipoImovel, originalSubtype: nullable("SubTipoImovel") },
-    publicLocation: { officialNeighborhood: f.BairroOficial, neighborhoodAlias: nullable("Bairro"), city: f.Cidade, state: f.Estado },
+    publicLocation: { officialNeighborhood: nullable("Bairro") ?? f.BairroOficial, neighborhoodAlias: nullable("Bairro"), city: f.Cidade, state: f.Estado },
     privateLocation: { street: nullable("Endereco"), number: nullable("Numero"), complement: nullable("ComplementoEndereco"), postalCode: nullable("CEP"), coordinates: f.latitude && f.longitude ? { latitude: f.latitude, longitude: f.longitude } : null },
     areas: { unit: f.UnidadeMetrica?.toUpperCase() === "M2" ? "m2" : f.UnidadeMetrica?.toLowerCase() === "ha" ? "ha" : null, total: decimal("AreaTotal"), usable: decimal("AreaUtil"), private: decimal("AreaPrivativa") },
     rooms: { bedrooms: integer("QtdDormitorios"), suites: integer("QtdSuites"), bathrooms: integer("QtdBanheiros"), livingRooms: integer("QtdSalas"), parkingSpaces: integer("QtdVagas") },
     title, description: safeText(f.Observacao, "description"), media,
     features: Object.entries(f).filter(([key, value]) => featureNames.has(key) && value !== "").map(([key, value]) => ({ key: slug(key), label: null, value, originalKey: key, originalValue: value, visibility: "pending_review" })),
-    rawMetadata: { tipoOferta: nullable("TipoOferta"), publicaValores: nullable("PublicaValores"), tipoLocacao: nullable("TipoLocacao"), publicarOrigem: nullable("Publicar"), finalidadeOrigem: nullable("Finalidade"), statusComercial: nullable("StatusComercial"), nomeCondominio: nullable("NomeCondominio"), nomeEdificio: nullable("NomeEdificio"), filialOrigem: nullable("Filial"), dataCadastroOrigem: nullable("DataCadastro"), dataAtualizacaoOrigem: nullable("DataAtualizacaoImovel") },
+    rawMetadata: { bairroOrigem: nullable("Bairro"), bairroOficialOrigem: nullable("BairroOficial"), tipoOferta: nullable("TipoOferta"), publicaValores: nullable("PublicaValores"), tipoLocacao: nullable("TipoLocacao"), publicarOrigem: nullable("Publicar"), finalidadeOrigem: nullable("Finalidade"), statusComercial: nullable("StatusComercial"), nomeCondominio: nullable("NomeCondominio"), nomeEdificio: nullable("NomeEdificio"), filialOrigem: nullable("Filial"), dataCadastroOrigem: nullable("DataCadastro"), dataAtualizacaoOrigem: nullable("DataAtualizacaoImovel") },
     alerts,
   });
   return item;
