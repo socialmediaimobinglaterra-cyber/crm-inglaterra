@@ -1,5 +1,25 @@
 # Plano de conclusao do CRM
 
+## Editor de condominios - 2026-09-22
+
+- `/catalog/developments/[id]` abre pelo nome em Cadastros existentes. Nome e descricao editaveis; lista dos imoveis vinculados com links para seus editores e bairro/cidade atuais. Nenhum endereco inferido do grupo. Lancamentos ainda nao recebem editor nesta entrega.
+- Pagina/action/queries verificam usuario ativo e papel no servidor. Admin, cadastro e corretor editam somente nome/sobre. Schema estrito rejeita campos extras; versao otimista rejeita edicoes desatualizadas. Lock compartilhado com agrupamentos evita concorrencia entre renomeacao e vinculo por nome.
+- Slug, endereco, bairro, galeria, propriedades e publicacao preservados. Sem migracao, nova API publica ou alteracao no site. Nenhum cadastro real editado.
+- Teste local de validacao e build aprovados. Teste Neon autorizado com fixtures confirmou tres papeis, inativos/ausentes bloqueados, concorrencia, privacidade e preservacao inclusive de cadastro ativo/publicado. Edge confirmou salvamento como corretor, persistencia apos recarga, desktop/mobile e redirect anonimo. Fixtures e unidades de teste removidas, limpeza verificada.
+- Servidor local novo: http://localhost:3007/catalog/developments#cadastros. Aceite do usuario e deploy continuam pendentes. Sem commit/push. Esta entrega nao inclui galeria/publicacao editorial ou cadastro manual independente.
+
+## Resolucao revisada de Terras de Canaa - 2026-09-22
+
+- Usuario confirmou que CA4817, CA5355, CA5152 e TE0787 pertencem ao mesmo condominio. Quatro vinculos criados no cadastro inativo Residencial Terras de Canaa pela rotina administrativa ja validada, preservando enderecos, bairros, cidades, fonte, curadoria, imagens e publicacao.
+- Comparacao transacional das demais colunas aprovada; consulta posterior independente confirmou os quatro no mesmo cadastro inativo e as cidades Londrina/Cambe mantidas. Total de 1.188 imoveis vinculados; nenhum caso ambiguo restante no planejador. Os 1.033 sem nome de condominio/edificio no XML continuam sem inferencia de vinculo.
+- Nenhuma alteracao de codigo nesta etapa, nem site, commit, push ou deploy. Planilha de 21/09 permanece historica, anterior a resolucao dos sete casos.
+
+## Resolucao revisada de Estancia Cabral - 2026-09-22
+
+- Usuario confirmou que CA5333, CA4294 e TE1113 pertencem ao mesmo condominio e proibiu alteracoes de endereco. Grupo vinculado ao cadastro inativo ESTANCIA CABRAL pela rotina administrativa de revisao explicita.
+- Transacao verificou nomes XML, origem, presenca na fonte e ausencia de vinculos conflitantes. Comparacao de todas as demais colunas dos imoveis comprovou preservacao, exceto updated_at nos tres registros vinculados. Enderecos, bairros, cidades, curadoria, fotos e publicacao mantidos. Nenhum outro vinculo alterado.
+- TypeScript aprovado; confirmacao posterior somente leitura mostrou os tres no mesmo cadastro inativo, com Cambe/Londrina preservados. Restam quatro casos de cidade divergente em Residencial Terras de Canaa. Sem alteracao no site, commit, push ou deploy. Planilha anterior permanece como fotografia da consulta de 21/09/2026.
+
 ## Escopo exclusivo CRM e proxima entrega
 
 - Usuario determinou manter as alteracoes ja feitas no site, mas proibiu novas alteracoes em seu codigo, layout, comportamento ou configuracao. Pedido subsequente de commit abrange somente o trabalho existente; nao autoriza novas mudancas no site nem push/deploy.
@@ -288,3 +308,49 @@ Implementacao: migracao `008_catalog_codes.sql` aplicada no Neon, sem editar 001
 - sharp validado com imagem sintetica: codificacao AVIF, decodificacao, resize e PNG. Servidor temporario encerrado.
 - Nenhuma consulta ou alteracao no Neon nesta atualizacao. Sem envio de e-mail ou repeticao da importacao. Login autenticado em producao nao foi retestado; as correcoes ainda dependem de publicacao autorizada.
 - Referencias: https://github.com/vercel/next.js/security/advisories/GHSA-p293-qw3h-jr36 e https://github.com/postcss/postcss/security/advisories/GHSA-fxqj-rqcc-2cmp .
+# Revisao de condominios e lancamentos no CRM - 2026-09-21
+
+- Implementada `/catalog/developments`, acessivel pela navegacao do CRM. Lista dados reais ja importados: nomes de condominio/edificio, codigo, cidade/UF, bairro, status comercial e vinculos existentes. Busca por nome/codigo/cidade e paginacao de 25 imoveis. Nao houve nova leitura do feed.
+- Selecao explicita de imoveis e confirmacao de pertencimento ao mesmo empreendimento. Cria cadastro inativo ou acrescenta vinculos a cadastro inativo existente, sem substituir vinculos anteriores. Nomes semelhantes nao sao unidos automaticamente. Status comercial e informativo; nao cria lancamento automaticamente.
+- Transacao revalida usuario ativo/papel, bloqueia imoveis em ordem deterministica e compara versao dos dados/curadoria/vinculos. Cadastros ativos nao recebem vinculos por este fluxo. Preserva XML, endereco privado, curadoria e publicacao dos imoveis; nao copia endereco, fotos ou descricao de uma unidade para o empreendimento.
+- Usa schema 007 existente; sem migracao. Nenhuma alteracao no repositorio do site, API publica, publicacao real, push ou deploy. Cadastro novo fica sem unidades publicadas e sem conteudo ficticio. Slug interno exclusivo usa tipo e UUID, sem inferir URL do site.
+- Usuario autorizou consulta ao Neon e teste com fixtures exclusivas. Testes aprovados: tres papeis, usuario inativo/ausente, dados privados ausentes da listagem, vinculo existente, revisao desatualizada, concorrencia, rollback e preservacao da origem/publicacao. Limpeza dos registros temporarios confirmada.
+- Consulta agregada somente leitura: 2.221 imoveis externos, 1.188 com nome de condominio e 387 com nome de edificio. Contagens podem se sobrepor e nao representam empreendimentos unicos.
+- Build aprovado. Edge autenticado confirmou salvamento real de vinculo em fixture, listagem de dados reais somente leitura, layout desktop/mobile sem overflow da pagina e redirecionamento de visitante anonimo ao login. Tabela possui rolagem horizontal em telas pequenas. Nenhum imovel real alterado.
+- Servidor local em http://localhost:3006/catalog/developments. Ainda pendem aceite do usuario e revisao dos agrupamentos reais; CRUD editorial completo, galeria, publicacao e endpoints de empreendimentos nao fazem parte desta entrega de organizacao/vinculos. Esta etapa nao fecha toda a entrega 3.
+# Limite de escopo reafirmado pelo usuario - 2026-09-21
+
+- Trabalho restrito ao CRM. Qualquer necessidade de alterar codigo, layout, comportamento ou configuracao do site Inglaterra Premium deve ser explicada previamente e aprovada explicitamente pelo usuario. Autorizacoes anteriores nao permitem novas alteracoes no site.
+- Excecao pontual autorizada nesta data: remover a barra de filtros manuais apresentada pelo usuario, preservando a busca por IA e a integracao existente. No site, apenas `components/search/BuscaImoveisClient.tsx` foi alterado: remocao da barra e de seus auxiliares exclusivos. Estado conversacional, endpoints, ordenacao, paginacao, limpeza e dados preservados. Sem commit, push ou deploy.
+- Build do site aprovado sem conexao de banco; oito testes de estado da busca e teste existente `scripts/test-crm-conversation.ts` aprovados, com OpenAI/CRM simulados. Quatro testes de `tests/ai-route.test.ts` falham por mock ausente de `@/lib/crm-conversation`; rota e teste nao foram alterados nesta correcao. Nao corrigir esse teste sem ampliar a autorizacao.
+- Novo teste de navegador foi inicialmente bloqueado por acrescentar arquivo ao site. Usuario entao autorizou explicitamente somente esse teste da correcao. Criado `scripts/test-search-interface.cjs`: componente real em ambiente isolado, respostas de API simuladas, sem credenciais. Edge desktop/mobile aprovou ausencia da barra, contexto acumulado da IA, ordenacao, paginacao e limpeza nos modos publico/previa CRM. Screenshots revisadas; harness nao reproduz o layout global/fontes do Next. Chamada real de IA e validacao em producao continuam pendentes de deploy autorizado.
+# Vinculos em lote por nome XML - 2026-09-21
+
+- Usuario autorizou vincular os imoveis aos condominios do XML e usar a conexao Neon configurada. Operacao administrativa pontual, sem nova importacao do feed, migracao, alteracao do site ou publicacao.
+- Plano calculado sobre os dados ja importados, com prioridade para nomeCondominio e fallback nomeEdificio. Correspondencia conserva pontuacao/acentos e ignora somente caixa/espacos. Bairros e enderecos diferentes nao impedem vinculo, conforme decisao do usuario; nomes iguais em cidades/UF distintas ficam pendentes. Vinculos anteriores nunca substituidos.
+- Aplicacao atomica condicionada ao SHA-256 do snapshot revisado, com bloqueios transacionais e comparacao de todas as colunas dos imoveis exceto condominio_id/updated_at. Gravacao em lote criou 493 condominios inativos e 1.148 vinculos; 33 vinculos existentes preservados. Fonte, curadoria, enderecos, bairros, lancamentos, imagens e publicacao preservados.
+- Consulta posterior independente confirmou 1.181 vinculos e nenhum novo vinculo/cadastro proposto numa repeticao. Sete registros ficaram para revisao por cidades diferentes; 1.033 nao possuem nome de condominio/edificio no XML.
+- Testes locais do planejador e TypeScript aprovados. Resultado real verificado no Neon. Relatorio solicitado entregue como arquivo externo; nenhum relatorio ou endereco privado foi registrado em tabelas/documentacao do CRM.
+- Scripts administrativos: `scripts/link-xml-condominiums.ts` (padrao somente leitura; escrita exige --apply, --expected e --output exclusivo) e `scripts/test-condominium-batch.ts`. Consultas isoladas em `lib/queries/condominium-batch.ts`, sem rota ou server action para essa operacao.
+
+## Galeria de areas comuns - em validacao - 2026-09-22
+
+- Editor de condominio recebe selecao multipla, previa local, ordem, principal e remocao no mesmo Salvar alteracoes. Fotos pertencem ao condominio, nao sao copiadas para os imoveis vinculados. Nenhuma alteracao no site Premium.
+- Migracao 015 preparada, ainda nao aplicada: proprietario exclusivo em catalog_images (imovel ou condominio), ordem e principal protegidas por constraints. Reutiliza estados de upload, validacao real de formato, WebP/miniaturas e Blob privado. API publica existente continua restrita a imagens dos imoveis publicados.
+- Texto e galeria salvos atomicamente com versoes otimistas; fotos de outro proprietario, pendentes ou removidas sao recusadas. Autorizacao no servidor para os tres papeis de edicao. Publicacao, enderecos e vinculos nao mudam. Limpeza de arquivos removidos/abandonados limitada ao condominio nas novas acoes.
+- Testes locais de rascunho e processamento de imagem aprovados. Teste Neon com fixtures e Blob simulado preparado em scripts/test-condominium-images.ts, aguardando autorizacao especifica para migracao e execucao. Nao considerar a entrega concluida antes dessa validacao e do teste de navegador; envio ao Blob real tambem permanece pendente.
+
+## Composicao da galeria publica - em validacao - 2026-09-22
+
+- A pedido do usuario, a API local passa a acrescentar as fotos ready do condominio vinculado depois das fotos do imovel, preservando a principal do imovel, o contrato media e o proxy existente. Sem duplicar arquivos e sem editar o site Premium.
+- Fotos comuns herdam acesso de um imovel publicado na unidade, sem publicar o cadastro independente do condominio. Remocao de imagem, retirada de publicacao e desvinculo reavaliados pelo proxy. Sem campos privados novos na resposta.
+- Testes locais de composicao, ordem, posicoes, principal, grupos vazios, privacidade e HTTP/cache aprovados. TypeScript aprovado. Testes SQL ampliados para listas/detalhes, condominios compartilhados, isolamento entre unidades, estados e revogacao; ainda nao executados por dependerem da migracao 015 e autorizacao Neon pendentes. Sem alteracao de dados reais, commit, push ou deploy.
+
+## Validacao autorizada das galerias - 2026-09-22
+
+- Usuario autorizou a migracao e os testes. Migracao 015 aplicada no Neon configurado do CRM; 001-014 ja estavam aplicadas. Nenhum dado de imovel, endereco, vinculo ou publicacao real foi editado.
+- `test-condominium-images.ts --db` aprovado: tres papeis, isolamento entre proprietarios, staging privado, rollback conjunto, concorrencia, ordem/principal/remocao, limpeza restrita ao condominio de teste e regressao das imagens de imoveis. Blob simulado. Fixtures removidas e ausencia conferida.
+- `test-catalog-api.ts --db` aprovado: ordem imovel/condominio no detalhe e listagem, principal preservada, condominio compartilhado, isolamento por unidade e bloqueios por desvinculo, inatividade, revisao pendente, fonte ausente, despublicacao e estado da imagem. Fixtures exclusivas removidas e ausencia conferida. Nenhum arquivo enviado ao Blob.
+- `test-condominium-editor.ts --db --browser` aprovado no Edge: salvamento/reabertura de nome e descricao, selecao multipla local, principal, ordem, remocao e visitante redirecionado ao login. Screenshots 1440/390 revisadas, sem overflow. Selecao nao gravou imagens no banco; remocao da previa seguida de salvamento validada. Fixtures removidas.
+- Servidor local atualizado em http://localhost:3008; porta anterior preservada. Build do codigo de aplicacao ja aprovado na etapa anterior, sem mudanca posterior; TypeScript e diff revisados apos ampliar o teste de navegador.
+- Pendente de aceite em producao: envio real de fotos comuns ao Blob e navegacao da galeria integrada no site. Sem credencial Blob local, selecao mostra previa e o envio permanece indisponivel. Nenhuma alteracao no site Premium, commit, push ou deploy nesta autorizacao.

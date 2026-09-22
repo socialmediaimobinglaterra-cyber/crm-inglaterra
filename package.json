@@ -24,7 +24,9 @@
     "test:catalog-publication": "tsx scripts/test-catalog-publication.ts",
     "test:image-pilot": "tsx scripts/test-image-pilot.ts",
     "test:image-batches": "tsx scripts/test-image-batches.ts",
-    "test:catalog-api": "tsx scripts/test-catalog-api.ts"
+    "test:catalog-api": "tsx scripts/test-catalog-api.ts",
+    "test:catalog-developments": "tsx scripts/test-catalog-developments.ts",
+    "test:condominium-images": "tsx scripts/test-condominium-images.ts"
   },
   "dependencies": {
     "@vercel/blob": "2.8.0",

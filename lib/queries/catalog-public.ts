@@ -1,6 +1,6 @@
 import { sql } from '@/lib/db';
 import { publicationUnitSchema, publicCatalogItemSchema, type PublicCatalogItem, type PublicationUnit } from '@/lib/catalog/schemas';
-import { projectPublicItem, publicCodeSchema, type PublicFilters, type ReadyPublicImage } from '@/lib/catalog/public-api';
+import { appendCondominiumImages, projectPublicItem, publicCodeSchema, type PublicFilters, type ReadyPublicImage } from '@/lib/catalog/public-api';
 import { catalogIdSchema } from '@/lib/catalog/editor';
 
 function visible(unit: PublicationUnit) {
@@ -23,9 +23,16 @@ function publicRows(unit: PublicationUnit) {
 
 async function projectRows(rows: { id: string; codigo: string; data: unknown }[], unit: PublicationUnit) {
   if (!rows.length) return [];
-  const images = await sql<(ReadyPublicImage & {imovel_id: string})[]>`select id,imovel_id,position,is_primary
-    from catalog_images where imovel_id in ${sql(rows.map(row => row.id))} and status='ready' order by imovel_id,position,id`;
-  return rows.map(row => projectPublicItem(row.codigo, unit, row.data, images.filter(image => image.imovel_id === row.id)));
+  const images = await sql<(ReadyPublicImage & {imovel_id: string;common: boolean})[]>`select c.id,i.id as imovel_id,c.position,c.is_primary,
+    c.condominio_id is not null as common
+    from imoveis i join catalog_images c on (c.imovel_id=i.id or c.condominio_id=i.condominio_id)
+    where i.id in ${sql(rows.map(row => row.id))} and c.status='ready' and ${visible(unit)}
+    order by i.id,c.position,c.id`;
+  return rows.map(row => {
+    const own=images.filter(image=>image.imovel_id===row.id&&!image.common);
+    const common=images.filter(image=>image.imovel_id===row.id&&image.common);
+    return projectPublicItem(row.codigo,unit,row.data,appendCondominiumImages(own,common));
+  });
 }
 
 export async function listPublicProperties(unit: PublicationUnit, filters: PublicFilters) {
@@ -80,7 +87,8 @@ export async function getPublicFilterOptions(unit: PublicationUnit) {
 
 export async function canReadPublicImage(unit: PublicationUnit, id: string) {
   catalogIdSchema.parse(id);
-  const rows = await sql`select c.id from catalog_images c join imoveis i on i.id=c.imovel_id
-    where c.id=${id} and c.status='ready' and ${visible(unit)} limit 1`;
+  // Common-area photos inherit access from a published linked property, not from a public condominium page.
+  const rows = await sql`select c.id from catalog_images c where c.id=${id} and c.status='ready'
+    and exists(select 1 from imoveis i where (i.id=c.imovel_id or i.condominio_id=c.condominio_id) and ${visible(unit)}) limit 1`;
   return rows.length > 0;
 }

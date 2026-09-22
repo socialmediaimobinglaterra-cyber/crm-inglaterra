@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
-import { parsePublicQuery, projectPublicItem } from '@/lib/catalog/public-api';
+import { appendCondominiumImages, parsePublicQuery, projectPublicItem } from '@/lib/catalog/public-api';
 import { createPublicHandlers } from '@/lib/catalog/public-http';
 import { createPublicDataCache } from '@/lib/catalog/public-cache';
 import { listPublicProperties, getPublicProperty, getPublicFilterOptions, canReadPublicImage } from '@/lib/queries/catalog-public';
@@ -31,6 +31,19 @@ function noLeak(value: unknown) {
 }
 
 async function local() {
+  const own=[{id:randomUUID(),position:7,is_primary:false},{id:imageId,position:2,is_primary:true}];
+  const common=[{id:randomUUID(),position:8,is_primary:true},{id:randomUUID(),position:1,is_primary:false}];
+  const combined=appendCondominiumImages(own,common);
+  assert.deepEqual(combined.map(i=>i.id),[own[1].id,own[0].id,common[1].id,common[0].id]);
+  assert.deepEqual(combined.map(i=>i.position),[2,7,8,9]);
+  assert.deepEqual(combined.map(i=>i.is_primary),[true,false,false,false]);
+  assert.deepEqual(appendCondominiumImages(own,[]),[own[1],own[0]]);
+  assert.deepEqual(appendCondominiumImages([],common).map(i=>i.position),[0,1]);
+  assert.deepEqual(appendCondominiumImages([],[]),[]);
+  assert.equal(common[0].is_primary,true);assert.equal(common[0].position,8);
+  const combinedItem=projectPublicItem('AP9999','premium',data,combined);
+  assert.deepEqual(combinedItem.media.map(i=>i.order),[2,7,8,9]);noLeak(combinedItem);
+  console.log('PASS: property photos first, common-area order, unique positions, primary preserved and unchanged inputs');
   for (const query of ['page=0','page=1.5','perPage=49','valorMinimo=-1','valorMinimo=1e5','areaMinima=NaN',
     'valorMinimo=10&valorMaximo=1','areaMinima=2&areaMaxima=1','areaMaxima=-1','areaMaxima=1e5',
     'condominio=','condominio='+ 'a'.repeat(121),'condominio=A&condominio=B',
@@ -143,10 +156,15 @@ async function cacheBoundaries() {
 async function database() {
   const ids=Array.from({length:4},()=>randomUUID());
   const images=Array.from({length:3},()=>randomUUID());
+  const condominium=randomUUID(),unlinkedCondominium=randomUUID();
+  const sourceKey=`gallery-test-${condominium}`;
+  const commonImages=Array.from({length:5},()=>randomUUID());
   const code=`AP${Date.now().toString().slice(-12)}`;
   const city=`Fixture-${randomUUID()}`;
   const identifier=createHash('sha256').update(randomUUID()).digest('hex');
   try {
+    await sql`insert into catalog_sources(key,adapter) values(${sourceKey},'synthetic-test')`;
+    for(const id of [condominium,unlinkedCondominium]) await sql`insert into condominios(id,nome,slug) values(${id},'Condominio sintetico',${id})`;
     for(let index=0;index<ids.length;index++) {
       await sql`insert into imoveis(id,codigo,origem,dados_origem,endereco_privado,source_hash,ativo,status_publicacao)
         values(${ids[index]},${index===0?code:randomUUID()},'manual',${sql.json({...data,publicLocation:{...data.publicLocation,city}})},
@@ -184,8 +202,39 @@ async function database() {
     const page=await listPublicProperties('premium',parsePublicQuery(new URLSearchParams({cidade:city,page:'2',perPage:'1'})));
     assert.equal(page.total,1); assert.equal(page.items.length,0); assert.equal(page.hasMore,false);
     assert((await getPublicFilterOptions('premium')).some(option=>option.cidade===city));
+    for(let index=0;index<commonImages.length;index++) await sql`insert into catalog_images(id,condominio_id,status,position,is_primary,width,height,bytes)
+      values(${commonImages[index]},${index===4?unlinkedCondominium:condominium},${index===2?'staged':index===3?'deleting':'ready'},
+      ${index===2||index===3?null:index===0?4:0},${index===0},10,10,10)`;
+    assert(!await canReadPublicImage('premium',commonImages[0]));
+    await sql`update imoveis set condominio_id=${condominium} where id in (${ids[0]},${ids[1]})`;
+    const combined=await getPublicProperty('premium',code);assert(combined);noLeak(combined);
+    assert.deepEqual(combined.media.map(m=>m.url?.split('/').at(-1)),[images[0],commonImages[1],commonImages[0]]);
+    assert.deepEqual(combined.media.map(m=>m.order),[0,1,2]);
+    assert.deepEqual(combined.media.map(m=>m.isPrimary),[true,false,false]);
+    const combinedList=await listPublicProperties('premium',parsePublicQuery(new URLSearchParams({cidade:city})));
+    assert.deepEqual(combinedList.items[0].media,combined.media);
+    assert(await canReadPublicImage('premium',commonImages[0]));assert(await canReadPublicImage('matriz',commonImages[0]));
+    for(const image of commonImages.slice(2)) assert(!await canReadPublicImage('premium',image));
+    await sql`update imoveis set condominio_id=null where id=${ids[0]}`;
+    assert.equal((await getPublicProperty('premium',code))?.media.length,1);
+    assert(!await canReadPublicImage('premium',commonImages[0]));
+    await sql`update imoveis set condominio_id=${condominium},ativo=false where id=${ids[0]}`;
+    assert(!await canReadPublicImage('premium',commonImages[0]));
+    await sql`update imoveis set ativo=true,status_publicacao='pending_review' where id=${ids[0]}`;
+    assert(!await canReadPublicImage('premium',commonImages[0]));
+    await sql`update imoveis set status_publicacao='published',origem='external',source_key=${sourceKey},external_id=${ids[0]},fonte_presente=false where id=${ids[0]}`;
+    assert(!await canReadPublicImage('premium',commonImages[0]));
+    await sql`update imoveis set origem='manual',fonte_presente=true where id=${ids[0]}`;
+    await sql`update catalog_images set status='deleting',position=null,is_primary=false where id=${commonImages[0]}`;
+    assert(!await canReadPublicImage('premium',commonImages[0]));
+    assert.equal((await getPublicProperty('premium',code))?.media.length,2);
+    console.log('PASS: real SQL combined list/detail, shared condominium, per-unit image access, unlink/inactive/review/source and removed/staged images');
     await sql`update unidades_publicacao set ativo=false where imovel_id=${ids[0]}`;
     assert.equal(await getPublicProperty('premium',code),null); assert(!await canReadPublicImage('premium',images[0]));
+    assert(!await canReadPublicImage('premium',commonImages[1]));
+    assert(await canReadPublicImage('matriz',commonImages[1]));
+    await sql`update imoveis set condominio_id=null where id=${ids[1]}`;
+    assert(!await canReadPublicImage('matriz',commonImages[1]));
     assert(!(await getPublicFilterOptions('premium')).some(option=>option.cidade===city));
     await sql`insert into catalog_api_rate_limits(identifier_hash,scope,window_start,attempts) values(${identifier},'json',date_trunc('minute',now()),119)`;
     const race=await Promise.all(Array.from({length:5},()=>consumeApiLimit(identifier,'json')));
@@ -196,11 +245,17 @@ async function database() {
     console.log('PASS: PostgreSQL visibility/units, curation, filters, hectares, pagination, private gallery, unpublishing and concurrent distributed limiter');
   } finally {
     await sql`delete from catalog_images where id in ${sql(images)}`;
+    await sql`delete from catalog_images where id in ${sql(commonImages)}`;
     await sql`delete from imoveis where id in ${sql(ids)}`;
+    await sql`delete from condominios where id in (${condominium},${unlinkedCondominium})`;
+    await sql`delete from catalog_sources where key=${sourceKey}`;
     await sql`delete from catalog_api_rate_limits where identifier_hash=${identifier}`;
     const [left]=await sql`select (select count(*) from imoveis where id in ${sql(ids)})+
       (select count(*) from catalog_images where id in ${sql(images)})+
       (select count(*) from unidades_publicacao where imovel_id in ${sql(ids)})+
+      (select count(*) from catalog_images where id in ${sql(commonImages)})+
+      (select count(*) from condominios where id in (${condominium},${unlinkedCondominium}))+
+      (select count(*) from catalog_sources where key=${sourceKey})+
       (select count(*) from catalog_api_rate_limits where identifier_hash=${identifier}) as total`;
     assert.equal(Number(left.total),0); console.log('Temporary fixtures removed; no real property or Blob modified');
   }

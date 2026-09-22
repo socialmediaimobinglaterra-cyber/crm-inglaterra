@@ -37,6 +37,13 @@ export function parsePublicQuery(params: URLSearchParams) {
 
 export type PublicFilters = z.output<typeof publicFiltersSchema>;
 export type ReadyPublicImage = { id: string; position: number; is_primary: boolean };
+export function appendCondominiumImages(images: ReadyPublicImage[], common: ReadyPublicImage[]) {
+  const ordered=[...images].sort((a,b)=>a.position-b.position||a.id.localeCompare(b.id));
+  const offset=ordered.reduce((next,image)=>Math.max(next,image.position+1),0);
+  // A condominium cover must never replace the property's own primary photo.
+  return [...ordered,...[...common].sort((a,b)=>a.position-b.position||a.id.localeCompare(b.id))
+    .map((image,index)=>({...image,position:offset+index,is_primary:false}))];
+}
 export function publicImageUrl(unit: PublicationUnit, id: string) {
   publicationUnitSchema.parse(unit);
   z.uuid().parse(id);

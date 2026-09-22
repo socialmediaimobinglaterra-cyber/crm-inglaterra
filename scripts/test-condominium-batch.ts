@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import { planCondominiumBatch, type CondominiumSourceRow } from '@/lib/catalog/condominium-batch';
+const row=(id:string,extra:Partial<CondominiumSourceRow>={}):CondominiumSourceRow=>({id,codigo:id,source_key:'xml',fonte_presente:true,condominio_id:null,nome:'Aspen',edificio:'',city:'Londrina',state:'PR',neighborhood:'A',street:'Rua A',number:'1',complement:'',postal_code:'',fingerprint:'',...extra});
+assert.equal(planCondominiumBatch([row('a'),row('b',{neighborhood:'B',street:'Rua B'})],[]).changes[0].ids.length,2);
+assert.equal(planCondominiumBatch([row('a'),row('b',{city:'Outra'})],[]).changes.length,0);
+assert.equal(planCondominiumBatch([row('a',{nome:' ASPEN  '}),row('b')],[]).changes.length,1);
+assert.equal(planCondominiumBatch([row('a',{nome:'',edificio:'Acqua'})],[]).changes[0].name,'Acqua');
+assert.equal(planCondominiumBatch([row('a',{condominio_id:'old'}),row('b')],[{id:'old',nome:'ASPEN',ativo:false}]).changes[0].targetId,'old');
+assert.equal(planCondominiumBatch([row('a',{condominio_id:'old'}),row('b')],[{id:'old',nome:'Outro',ativo:false}]).changes.length,0);
+assert.equal(planCondominiumBatch([row('a')],[{id:'old',nome:'Aspen',ativo:true}]).changes.length,0);
+assert.equal(planCondominiumBatch([row('a')],[{id:'1',nome:'Aspen',ativo:false},{id:'2',nome:'Aspen',ativo:false}]).changes.length,0);
+assert.equal(planCondominiumBatch([row('a',{nome:'',edificio:''}),row('b',{fonte_presente:false})],[]).pending.length,2);
+console.log('PASS: XML names, existing links, duplicate/active targets, city conflicts, absent names, and unchanged addresses');

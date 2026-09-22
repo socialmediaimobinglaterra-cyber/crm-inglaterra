@@ -34,6 +34,16 @@ A galeria publica usa somente `catalog_images.status=ready`, com ordem/principal
 
 Textos livres continuam exigindo curadoria: validacao estrutural e filtros de padroes sensiveis nao garantem detectar todo endereco escrito dentro de uma descricao. Nao foi feita auditoria semantica do catalogo real nesta entrega.
 
+### Fotos das areas comuns - implementacao local, pendente de validacao Neon
+
+- Listagem e detalhe acrescentam as fotos ready do condominio vinculado depois de todas as fotos ready do imovel. Sem vinculo ou sem fotos ready do condominio, a galeria do imovel permanece igual.
+- O contrato media e as URLs do proxy permanecem os mesmos. Cada grupo conserva sua ordem cadastrada; as posicoes das fotos comuns sao numeradas depois da maior posicao do imovel. A principal do condominio nao substitui a principal do imovel nem cria uma segunda principal na resposta. Nao ha copia de arquivos ou registros.
+- As fotos comuns sao conteudo complementar de um imovel publicado. Nao exigem uma pagina independente do condominio publicada: sua disponibilidade na unidade depende de existir ao menos um imovel vinculado que passe por todas as regras de visibilidade dessa unidade. Nenhum texto, endereco ou outro campo do cadastro inativo do condominio e exposto.
+- O proxy verifica novamente esse vinculo e a publicacao a cada acesso. Sem imovel elegivel na unidade, ou com imagem staged/pending/deleting, o acesso e negado. Um condominio compartilhado pode continuar com imagens disponiveis para outro imovel ainda publicado; retirar apenas um vinculo nao revoga os demais.
+- Depende da migracao 015. Testes locais de composicao/contrato/HTTP passaram; cenarios SQL preparados, mas aguardam autorizacao para migracao e testes temporarios no Neon. Nenhum deploy ou alteracao no site nesta entrega. Compatibilidade verificada apenas por leitura do parser atual do Premium, nao por navegacao real da galeria no site.
+
+Validacao posterior autorizada em 2026-09-22: migracao 015 aplicada e `test-catalog-api.ts --db` aprovado no Neon para composicao e controle de acesso. Galeria administrativa testada com Blob simulado e previa no navegador. Todos os registros temporarios removidos. Envio real ao Blob, deploy e navegacao no site continuam pendentes; o repositorio Premium nao foi alterado.
+
 ## Rate limiting, CORS e cache
 
 Migracao 014 cria contadores independentes da autenticacao. Limites operacionais iniciais: 120 requisicoes JSON/minuto/IP e 600 imagens/minuto/IP. Janela fixa pode permitir rajada na transicao entre minutos; nao substitui WAF nem protege contra ataque distribuido. O site fazendo chamadas server-to-server compartilha o IP de saida: validar limites na integracao antes de ampliar trafego.

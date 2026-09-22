@@ -4,20 +4,29 @@ import { catalogIdSchema, catalogVersionSchema } from '@/lib/catalog/editor';
 import { galleryDraftSchema, type GalleryDraft } from '@/lib/catalog/gallery-draft';
 
 type Tx = postgres.TransactionSql<Record<string, never>>;
+export type ImageOwner = 'property' | 'condominium';
+function ownerColumn(owner:ImageOwner) {
+  if(owner==='property') return 'imovel_id';
+  if(owner==='condominium') return 'condominio_id';
+  throw new Error('IMAGE_INVALID_OWNER');
+}
 export type GalleryImage = { id:string; position:number; is_primary:boolean; width:number; height:number };
 async function authorize(tx:Tx,email:string) {
   const rows=await tx`select id from usuarios where email=${email.trim().toLowerCase()} and ativo and role in ('admin','cadastro','corretor') for share`;
   if (!rows.length) throw new Error('CATALOG_FORBIDDEN');
 }
-async function lockProperty(tx:Tx,email:string,id:string) {
+async function lockProperty(tx:Tx,email:string,id:string,owner:ImageOwner='property') {
   catalogIdSchema.parse(id);
   await authorize(tx,email);
-  const rows=await tx`select id from imoveis where id=${id} for update`;
+  const table=ownerColumn(owner)==='imovel_id'?'imoveis':'condominios';
+  const rows=await tx`select id from ${tx(table)} where id=${id} for update`;
   if (!rows.length) throw new Error('CATALOG_NOT_FOUND');
 }
-async function gallery(tx:Tx,id:string) {
-  const images=await tx<GalleryImage[]>`select id,position,is_primary,width,height from catalog_images where imovel_id=${id} and status='ready' order by position,id`;
-  const [revision]=await tx`select md5(coalesce(string_agg(id::text || ':' || position::text || ':' || is_primary::text, ',' order by position,id),'')) as version from catalog_images where imovel_id=${id} and status='ready'`;
+// Caller holds the authorized owner row lock, including when reading a snapshot.
+export async function gallery(tx:Tx,id:string,owner:ImageOwner='property') {
+  const column=ownerColumn(owner);
+  const images=await tx<GalleryImage[]>`select id,position,is_primary,width,height from catalog_images where ${tx(column)}=${id} and status='ready' order by position,id`;
+  const [revision]=await tx`select md5(coalesce(string_agg(id::text || ':' || position::text || ':' || is_primary::text, ',' order by position,id),'')) as version from catalog_images where ${tx(column)}=${id} and status='ready'`;
   return {images:Array.from(images),version:String(revision.version)};
 }
 export async function getCatalogGallery(email:string,id:string) {
@@ -30,14 +39,15 @@ export async function getCatalogGallery(email:string,id:string) {
     return {...result,externalCount:Number(counts.external_count)};
   });
 }
-export async function beginImageUpload(email:string,propertyId:string,imageId:string,info:{width:number;height:number;bytes:number}) {
+export async function beginImageUpload(email:string,propertyId:string,imageId:string,info:{width:number;height:number;bytes:number},owner:ImageOwner='property') {
+  const column=ownerColumn(owner);
   catalogIdSchema.parse(imageId);
   if (![info.width,info.height,info.bytes].every(value=>Number.isSafeInteger(value)&&value>0)) throw new Error('IMAGE_INVALID');
   await sql.begin(async tx=>{
-    await lockProperty(tx,email,propertyId);
-    const [count]=await tx`select count(*)::int as total, count(*) filter(where status='pending')::int as pending from catalog_images where imovel_id=${propertyId} and status<>'deleting'`;
+    await lockProperty(tx,email,propertyId,owner);
+    const [count]=await tx`select count(*)::int as total, count(*) filter(where status='pending')::int as pending from catalog_images where ${tx(column)}=${propertyId} and status<>'deleting'`;
     if (count.total>=1000 || count.pending>=5) throw new Error('IMAGE_LIMIT');
-    await tx`insert into catalog_images(id,imovel_id,status,width,height,bytes) values(${imageId},${propertyId},'pending',${info.width},${info.height},${info.bytes})`;
+    await tx`insert into catalog_images(id,${tx(column)},status,width,height,bytes) values(${imageId},${propertyId},'pending',${info.width},${info.height},${info.bytes})`;
   });
 }
 export async function completeImageUpload(email:string,propertyId:string,id:string) {
@@ -49,31 +59,33 @@ export async function completeImageUpload(email:string,propertyId:string,id:stri
     if (!rows.length) throw new Error('IMAGE_UPLOAD_EXPIRED');
   });
 }
-export async function stageImageUpload(email:string,propertyId:string,id:string) {
+export async function stageImageUpload(email:string,propertyId:string,id:string,owner:ImageOwner='property') {
+  const column=ownerColumn(owner);
   catalogIdSchema.parse(id);
   await sql.begin(async tx => {
-    await lockProperty(tx,email,propertyId);
-    const rows = await tx`update catalog_images set status='staged' where id=${id} and imovel_id=${propertyId} and status='pending' returning id`;
+    await lockProperty(tx,email,propertyId,owner);
+    const rows = await tx`update catalog_images set status='staged' where id=${id} and ${tx(column)}=${propertyId} and status='pending' returning id`;
     if (!rows.length) throw new Error('IMAGE_UPLOAD_EXPIRED');
   });
 }
 
-// The caller holds the authorized property-save transaction and property lock.
-export async function saveGalleryDraft(tx:Tx,propertyId:string,input:GalleryDraft) {
+// The caller holds the authorized save transaction and owner row lock.
+export async function saveGalleryDraft(tx:Tx,propertyId:string,input:GalleryDraft,owner:ImageOwner='property') {
+  const column=ownerColumn(owner);
   const draft=galleryDraftSchema.parse(input);
-  const current=await gallery(tx,propertyId);
+  const current=await gallery(tx,propertyId,owner);
   if(current.version!==draft.version) throw new Error('GALLERY_CONFLICT');
-  const rows=await tx<{id:string;status:string}[]>`select id,status from catalog_images where imovel_id=${propertyId} order by id for update`;
+  const rows=await tx<{id:string;status:string}[]>`select id,status from catalog_images where ${tx(column)}=${propertyId} order by id for update`;
   for(const id of draft.ids) {
     const row=rows.find(row=>row.id===id);
     if(!row || !['ready','staged'].includes(row.status)) throw new Error('IMAGE_UPLOAD_EXPIRED');
   }
-  await tx`update catalog_images set is_primary=false where imovel_id=${propertyId} and is_primary`;
+  await tx`update catalog_images set is_primary=false where ${tx(column)}=${propertyId} and is_primary`;
   for(const row of current.images) {
     if(!draft.ids.includes(row.id)) await tx`update catalog_images set status='deleting',position=null,cleanup_at=null where id=${row.id}`;
   }
   for(const [position,id] of draft.ids.entries()) {
-    await tx`update catalog_images set status='ready',position=${position},is_primary=${id===draft.primaryId} where id=${id} and imovel_id=${propertyId}`;
+    await tx`update catalog_images set status='ready',position=${position},is_primary=${id===draft.primaryId} where id=${id} and ${tx(column)}=${propertyId}`;
   }
 }
 
@@ -86,12 +98,14 @@ export async function finishImageDeletion(id:string) {
   catalogIdSchema.parse(id);
   await sql`delete from catalog_images where id=${id} and status='deleting'`;
 }
-export async function claimImageCleanup(email:string) {
+export async function claimImageCleanup(email:string,condominiumId?:string) {
+  if(condominiumId!==undefined) catalogIdSchema.parse(condominiumId);
   return sql.begin(async tx=>{
     await authorize(tx,email);
+    const scope=condominiumId===undefined?tx`true`:tx`condominio_id=${condominiumId}`;
     return tx<{id:string}[]>`with candidates as (
       select id from catalog_images where
-        (status='deleting' or (status in ('pending','staged') and created_at<clock_timestamp()-interval '1 hour'))
+        ${scope} and (status='deleting' or (status in ('pending','staged') and created_at<clock_timestamp()-interval '1 hour'))
         and (cleanup_at is null or cleanup_at<clock_timestamp()-interval '5 minutes')
       order by created_at limit 5 for update skip locked
     ) update catalog_images i set status='deleting',cleanup_at=clock_timestamp()
